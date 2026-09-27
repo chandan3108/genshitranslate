@@ -1,0 +1,493 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Header } from '@/components/Header';
+import { SituationBar } from '@/components/SituationBar';
+import { ConversationList } from '@/components/ConversationList';
+import { InputDock } from '@/components/InputDock';
+import { ShowStaffCard } from '@/components/ShowStaffCard';
+import { FaceToFaceModal } from '@/components/FaceToFaceModal';
+import { VoiceSettingsModal } from '@/components/VoiceSettingsModal';
+import { CounterBoard } from '@/components/CounterBoard';
+import { SITUATIONS } from '@/lib/situations';
+import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard } from '@/lib/types';
+import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { playJapaneseSpeech, ensureVoicesLoaded, playChime } from '@/lib/audio';
+import { Ear } from 'lucide-react';
+
+export default function Home() {
+  const [situationId, setSituationId] = useState<SituationId>('konbini');
+  const [speaker, setSpeaker] = useState<Speaker>('auto'); // Default: Auto-Detect
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [continuousMode, setContinuousMode] = useState(false);
+  const [ambientCopilot, setAmbientCopilot] = useState(false);
+  const [showStaffCardTurn, setShowStaffCardTurn] = useState<Turn | null>(null);
+  const [showFaceToFace, setShowFaceToFace] = useState(false);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showCounterBoard, setShowCounterBoard] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const turnsEndRef = useRef<HTMLDivElement>(null);
+  const continuousModeRef = useRef(continuousMode);
+  continuousModeRef.current = continuousMode;
+  const ambientCopilotRef = useRef(ambientCopilot);
+  ambientCopilotRef.current = ambientCopilot;
+
+  const currentSituation = SITUATIONS[situationId] || SITUATIONS.konbini;
+
+  // Load saved turns, pre-warm audio voices, and register PWA service worker
+  useEffect(() => {
+    ensureVoicesLoaded();
+    try {
+      const saved = localStorage.getItem('genshi_turns');
+      if (saved) {
+        setTurns(JSON.parse(saved));
+      }
+      const savedSituation = localStorage.getItem('genshi_situation') as SituationId;
+      if (savedSituation && SITUATIONS[savedSituation]) {
+        setSituationId(savedSituation);
+      }
+    } catch (e) {}
+
+    // Register PWA service worker
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.debug('ServiceWorker registration error:', err);
+        });
+      });
+    }
+  }, []);
+
+  // Save turns to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('genshi_turns', JSON.stringify(turns.slice(-20)));
+      localStorage.setItem('genshi_situation', situationId);
+    } catch (e) {}
+  }, [turns, situationId]);
+
+  // Auto-scroll to bottom of conversation
+  useEffect(() => {
+    turnsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, isLoading]);
+
+  const recorderStartRef = useRef<() => void>(() => {});
+
+  // Send typed text to translate API
+  const handleSendMessage = useCallback(
+    async (text: string, activeSpeaker: Speaker) => {
+      if (!text.trim() || isLoading) return;
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const historyPayload = turns.slice(-6).map((t) => ({
+          speaker: t.speaker,
+          input: t.input,
+          japanese: t.japanese,
+          english: t.english,
+          situationalIntent: t.situationalIntent,
+        }));
+
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: text.trim(),
+            speaker: activeSpeaker,
+            situation: situationId,
+            history: historyPayload,
+            ambientFilter: ambientCopilotRef.current,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Translation error: ${res.status}`);
+        }
+
+        const data: TranslationResponse = await res.json();
+
+        // If ambient filter dropped English conversation, silently ignore!
+        if (data.isIgnored) {
+          return;
+        }
+
+        const resolvedSpeaker = data.detectedSpeaker || (activeSpeaker === 'local' ? 'local' : 'tourist');
+
+        const newTurn: Turn = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: Date.now(),
+          speaker: resolvedSpeaker,
+          input: text.trim(),
+          japanese: data.japanese,
+          romaji: data.romaji,
+          english: data.english,
+          situationalIntent: data.situationalIntent,
+          nuance: data.nuance,
+          culturalTip: data.culturalTip,
+          suggestedReplies: data.suggestedReplies || [],
+        };
+
+        setTurns((prev) => [...prev, newTurn]);
+
+        if (resolvedSpeaker === 'tourist') {
+          await playJapaneseSpeech(data.japanese);
+        }
+
+        // If continuous mode or ambient copilot is ON, re-arm microphone
+        if (continuousModeRef.current || ambientCopilotRef.current) {
+          setTimeout(() => {
+            if (continuousModeRef.current || ambientCopilotRef.current) {
+              recorderStartRef.current();
+            }
+          }, 600);
+        }
+      } catch (err: any) {
+        console.error('Failed to translate:', err);
+        setErrorMessage(err.message || 'Failed to connect to translation service');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isLoading, turns, situationId]
+  );
+
+  // Send spoken audio to Gemini for direct multimodal transcription & translation!
+  const handleAudioRecorded = useCallback(
+    async (base64Audio: string, mimeType: string) => {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const historyPayload = turns.slice(-6).map((t) => ({
+          speaker: t.speaker,
+          input: t.input,
+          japanese: t.japanese,
+          english: t.english,
+          situationalIntent: t.situationalIntent,
+        }));
+
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audioBase64: base64Audio,
+            audioMimeType: mimeType,
+            speaker: speaker,
+            situation: situationId,
+            history: historyPayload,
+            ambientFilter: ambientCopilotRef.current,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Audio translation error: ${res.status}`);
+        }
+
+        const data: TranslationResponse = await res.json();
+
+        // If ambient filter dropped English conversation with family, ignore and re-arm!
+        if (data.isIgnored) {
+          if (ambientCopilotRef.current) {
+            setTimeout(() => {
+              if (ambientCopilotRef.current) {
+                recorderStartRef.current();
+              }
+            }, 400);
+          }
+          return;
+        }
+
+        playChime('success');
+
+        const resolvedSpeaker = data.detectedSpeaker || (speaker === 'local' ? 'local' : 'tourist');
+
+        const newTurn: Turn = {
+          id: Math.random().toString(36).substring(2, 9),
+          timestamp: Date.now(),
+          speaker: resolvedSpeaker,
+          input: data.transcribedInput || (resolvedSpeaker === 'tourist' ? data.english : data.japanese),
+          japanese: data.japanese,
+          romaji: data.romaji,
+          english: data.english,
+          situationalIntent: data.situationalIntent,
+          nuance: data.nuance,
+          culturalTip: data.culturalTip,
+          suggestedReplies: data.suggestedReplies || [],
+        };
+
+        setTurns((prev) => [...prev, newTurn]);
+
+        if (resolvedSpeaker === 'tourist') {
+          await playJapaneseSpeech(data.japanese);
+        }
+
+        // If continuous live mode or ambient copilot is ON, re-arm microphone
+        if (continuousModeRef.current || ambientCopilotRef.current) {
+          setTimeout(() => {
+            if (continuousModeRef.current || ambientCopilotRef.current) {
+              recorderStartRef.current();
+            }
+          }, 600);
+        }
+      } catch (err: any) {
+        console.error('Failed to translate audio:', err);
+        setErrorMessage(err.message || 'Failed to process audio translation');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [turns, speaker, situationId]
+  );
+
+  // Audio recorder hook with high-gain pre-amp boost and silence detection
+  const {
+    isRecording,
+    audioLevel,
+    recordingDuration,
+    recorderError,
+    startRecording,
+    stopRecording,
+    toggleRecording,
+  } = useAudioRecorder({
+    onAudioRecorded: handleAudioRecorded,
+    autoStopOnSilence: true,
+    silenceThresholdMs: 1200,
+    highGainMultiplier: 2.4, // +7.6 dB acoustic boost for far-field voices
+  });
+
+  recorderStartRef.current = startRecording;
+
+  // Toggle Live Convo
+  const handleToggleContinuous = () => {
+    const nextMode = !continuousMode;
+    setContinuousMode(nextMode);
+    if (nextMode) {
+      setAmbientCopilot(false);
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  };
+
+  // Toggle Ambient Passenger Copilot Mode (Ignores English, captures Japanese)
+  const handleToggleAmbientCopilot = () => {
+    const nextMode = !ambientCopilot;
+    setAmbientCopilot(nextMode);
+    if (nextMode) {
+      setContinuousMode(false);
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  };
+
+  // Handle 1-tap quick reply selection
+  const handleSelectReply = (reply: SuggestedReply) => {
+    const newTurn: Turn = {
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: Date.now(),
+      speaker: 'tourist',
+      input: reply.meaning,
+      japanese: reply.japanese,
+      romaji: reply.romaji,
+      english: reply.meaning,
+      nuance: `Quick reply: "${reply.meaning}"`,
+    };
+    setTurns((prev) => [...prev, newTurn]);
+    playJapaneseSpeech(reply.japanese);
+  };
+
+  // Handle Quick Action chip from SituationBar
+  const handleSelectQuickAction = (action: QuickAction) => {
+    const newTurn: Turn = {
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: Date.now(),
+      speaker: 'tourist',
+      input: action.english,
+      japanese: action.japanese,
+      romaji: action.romaji,
+      english: action.english,
+      nuance: `Quick phrase for ${currentSituation.name}`,
+    };
+    setTurns((prev) => [...prev, newTurn]);
+    playJapaneseSpeech(action.japanese);
+  };
+
+  // Handle Counter Card selection
+  const handleSelectCounterCard = (card: CounterCard) => {
+    const newTurn: Turn = {
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: Date.now(),
+      speaker: 'tourist',
+      input: card.english,
+      japanese: card.japanese,
+      romaji: card.romaji,
+      english: card.english,
+      nuance: `Counter phrase: ${card.label}`,
+    };
+    setTurns((prev) => [...prev, newTurn]);
+    playJapaneseSpeech(card.japanese);
+    setShowCounterBoard(false);
+  };
+
+  const handleEnlargeCounterCard = (card: CounterCard) => {
+    setShowStaffCardTurn({
+      id: card.id,
+      timestamp: Date.now(),
+      speaker: 'tourist',
+      input: card.english,
+      japanese: card.japanese,
+      romaji: card.romaji,
+      english: card.english,
+    });
+    setShowCounterBoard(false);
+  };
+
+  const handleClearHistory = () => {
+    if (confirm('Clear the current conversation context?')) {
+      setTurns([]);
+      localStorage.removeItem('genshi_turns');
+    }
+  };
+
+  const handleToggleSpeaker = () => {
+    if (speaker === 'auto') setSpeaker('tourist');
+    else if (speaker === 'tourist') setSpeaker('local');
+    else setSpeaker('auto');
+  };
+
+  const handleFaceToFaceLocalSpeak = () => {
+    setSpeaker('local');
+    toggleRecording();
+  };
+
+  const handleFaceToFaceTouristSpeak = () => {
+    setSpeaker('tourist');
+    toggleRecording();
+  };
+
+  const displayedError = errorMessage || recorderError;
+
+  return (
+    <main className="flex-1 flex flex-col h-screen overflow-hidden bg-japan-indigo">
+      {/* Top Header */}
+      <Header
+        currentSituation={currentSituation}
+        continuousMode={continuousMode}
+        ambientCopilot={ambientCopilot}
+        onToggleContinuous={handleToggleContinuous}
+        onToggleAmbientCopilot={handleToggleAmbientCopilot}
+        onOpenCounterBoard={() => setShowCounterBoard(true)}
+        onOpenFaceToFace={() => setShowFaceToFace(true)}
+        onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+        onClearHistory={handleClearHistory}
+        historyCount={turns.length}
+      />
+
+      {/* Situation Picker & Quick Chips */}
+      <SituationBar
+        currentSituation={currentSituation}
+        onSelectSituation={(id) => setSituationId(id)}
+        onSelectQuickAction={handleSelectQuickAction}
+      />
+
+      {/* Ambient Copilot Banner when active */}
+      {ambientCopilot && (
+        <div className="bg-amber-500/15 border-b border-amber-500/40 text-amber-200 text-xs px-3 py-1.5 flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Ear className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span className="font-semibold text-[11px]">
+              Ambient Copilot Active: Listening for Japanese only. English family chatter is ignored.
+            </span>
+          </div>
+          <button
+            onClick={() => setAmbientCopilot(false)}
+            className="text-[10px] uppercase font-bold text-amber-300 hover:text-white underline ml-2"
+          >
+            Turn Off
+          </button>
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {displayedError && (
+        <div className="bg-red-500/20 border-b border-red-500/50 text-red-200 text-xs px-4 py-2 flex items-center justify-between animate-fadeIn">
+          <span>⚠️ {displayedError}</span>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="text-xs underline hover:text-white ml-2 flex-shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Main Conversation Feed */}
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        <ConversationList
+          turns={turns}
+          isLoading={isLoading}
+          onSelectReply={handleSelectReply}
+          onOpenShowStaff={(turn) => setShowStaffCardTurn(turn)}
+        />
+        <div ref={turnsEndRef} />
+      </div>
+
+      {/* Unified Input Dock */}
+      <InputDock
+        currentSpeaker={speaker}
+        onToggleSpeaker={handleToggleSpeaker}
+        onSendMessage={handleSendMessage}
+        isRecording={isRecording}
+        audioLevel={audioLevel}
+        recordingDuration={recordingDuration}
+        onToggleRecording={toggleRecording}
+        isLoading={isLoading}
+      />
+
+      {/* Full-Screen "Show to Staff" Flip Card */}
+      {showStaffCardTurn && (
+        <ShowStaffCard
+          japanese={showStaffCardTurn.japanese}
+          romaji={showStaffCardTurn.romaji}
+          english={showStaffCardTurn.english}
+          onClose={() => setShowStaffCardTurn(null)}
+        />
+      )}
+
+      {/* Zero-Speaking Counter Board Modal */}
+      {showCounterBoard && (
+        <CounterBoard
+          situation={situationId}
+          onClose={() => setShowCounterBoard(false)}
+          onSelectCard={handleSelectCounterCard}
+          onEnlargeCard={handleEnlargeCounterCard}
+        />
+      )}
+
+      {/* Tabletop Split-Screen Face-to-Face Mode */}
+      {showFaceToFace && (
+        <FaceToFaceModal
+          lastTurn={turns.length > 0 ? turns[turns.length - 1] : null}
+          isLoading={isLoading}
+          onSpeakLocal={handleFaceToFaceLocalSpeak}
+          onSpeakTourist={handleFaceToFaceTouristSpeak}
+          isRecording={isRecording}
+          recordingDuration={recordingDuration}
+          activeSpeaker={speaker === 'local' ? 'local' : 'tourist'}
+          onClose={() => setShowFaceToFace(false)}
+        />
+      )}
+
+      {/* Japanese Voice & Audio Settings Modal */}
+      {showVoiceSettings && (
+        <VoiceSettingsModal onClose={() => setShowVoiceSettings(false)} />
+      )}
+    </main>
+  );
+}
