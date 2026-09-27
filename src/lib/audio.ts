@@ -149,7 +149,7 @@ export async function playJapaneseSpeech(
     const audio = getGlobalAudio();
     if (audio) {
       return new Promise<void>((resolve) => {
-        const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=ja`;
+        const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=ja&v=2`;
         audio.src = ttsUrl;
         audio.playbackRate = Math.max(0.75, Math.min(1.5, savedRate));
 

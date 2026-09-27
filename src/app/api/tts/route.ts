@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(cached, {
         headers: {
           'Content-Type': 'audio/mpeg',
-          'Cache-Control': 'public, max-age=86400',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       });
     }
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(arrayBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
   } catch (error: any) {

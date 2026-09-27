@@ -101,7 +101,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                   </p>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
-                      onClick={() => playJapaneseSpeech(turn.japanese, turn.kanaReading)}
+                      onClick={() => {
+                        const kana = turn.kanaReading || turn.japanese.replace(/故郷/g, 'ふるさと');
+                        playJapaneseSpeech(turn.japanese, kana);
+                      }}
                       title="Play Japanese audio"
                       className="p-1.5 rounded-lg bg-japan-slate hover:bg-japan-border text-gray-300 hover:text-white transition-colors"
                     >
