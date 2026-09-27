@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       audioBase64,
       audioMimeType,
       ambientFilter = false,
+      tone = 'polite',
+      customContext = '',
     } = body;
 
     if ((!input || !input.trim()) && !audioBase64) {
@@ -50,7 +52,49 @@ export async function POST(req: NextRequest) {
       )
       .join('\n');
 
+    const toneInstruction = (() => {
+      switch (tone) {
+        case 'casual':
+          return `ACTIVE TONE: CASUAL & FRIENDLY (ため口 / Plain Form - Casual Izakaya, Friends, & Peer Talk)
+- CRITICAL: The traveler has EXPLICITLY chosen CASUAL tone.
+- STRICTLY FORBIDDEN: DO NOT use stiff polite forms (です, ます, でございます) or rigid keigo.
+- REQUIRED: Use natural, friendly, colloquial plain-form Japanese (e.g. だよ, じゃない？, これ美味しいね, お願い, ありがとう, どこ？, ちょうだい, 行こう).
+- Match the warmth and informality of chatting with friends, peers at an izakaya or counter bar, host families, or casual local acquaintances.
+- Keep it natural, warm, and friendly without grammatical stiffness.`;
+        case 'formal':
+          return `ACTIVE TONE: FORMAL & BUSINESS (敬語 / Respectful Keigo)
+- Use high-level polite and respectful Japanese (丁寧語, 謙譲語, 尊敬語) where appropriate.
+- Suitable for formal business meetings, high-end Ryokan, luxury dining, or ceremonial occasions.`;
+        case 'polite':
+        default:
+          return `ACTIVE TONE: NATURAL POLITE (丁寧語 / Desu-Masu - Standard Travel)
+- Use standard, respectful, natural polite Japanese (です/ます).
+- Clean, polite, and accessible for general everyday travel without sounding overly bureaucratic or robotic.`;
+      }
+    })();
+
+    const customContextBlock = customContext?.trim()
+      ? `CUSTOM USER CONTEXT & TRAVELER PROFILE:
+"${customContext.trim()}"
+MANDATORY CONTEXT-AWARENESS DIRECTIVES:
+1. The traveler has provided the above personal context, dietary restrictions, party details, or social setting.
+2. Adapt ALL translations, vocabulary choices, answers, and suggested replies according to this context:
+   - Dietary restrictions (e.g. vegetarian, vegan, halal, allergies, no pork, no dashi): When food, drinks, or ingredients are discussed or ordered, actively reflect these restrictions and clarify ingredients if needed.
+   - Social companions (e.g. traveling with kids, elderly parents, friends): Adjust phrasing and suggestions to suit the party.
+   - Social dynamic (e.g. drinking at a bar with new friends, chatting with Airbnb host): Tailor conversational nuance to this exact relationship.`
+      : `CUSTOM USER CONTEXT: None specified. Follow general travel context for the active venue.`;
+
     const systemPrompt = `You are "Genshi (言視)", an elite real-time Japanese travel translation copilot for foreign travelers visiting Japan.
+
+${toneInstruction}
+
+${customContextBlock}
+
+DEEP CONVERSATIONAL CONTINUITY & CONTEXT AWARENESS:
+1. Examine the CONVERSATION HISTORY closely. Maintain seamless continuity across turns.
+2. If the local staff previously asked a question (e.g. "Do you need a bag?", "Do you have a point card?", "Is this for here or to go?"), interpret short tourist answers like "No thanks", "Yes please", or "To go" directly in response to that question (e.g. "大丈夫です、袋はいらないです" or "持ち帰りでお願いします").
+3. If the tourist asks a question that builds on previous context (e.g. "How much for both?" or "Do you have another one?"), maintain reference continuity.
+4. When translating Japanese staff remarks, explain the real underlying situational intent rather than giving literal dictionary translations.
 
 ${
   ambientFilter
@@ -76,22 +120,22 @@ RULE:
 - The LOCAL is a Japanese resident or staff member who ONLY speaks Japanese.
 - If the speaker spoke or typed ENGLISH:
   * detectedSpeaker MUST BE "tourist".
-  * "japanese": Natural, polite travel Japanese translation for the tourist to say with standard Kanji.
-  * "kanaReading": Pure phonetic Hiragana reading of the entire Japanese sentence (e.g. "しぶやまでいくらくらいかかりますか？"). This provides the unambiguous reading layer fed directly into TTS speech synthesis so Kanji readings are never mispronounced!
+  * "japanese": Natural travel Japanese translation for the tourist to say with standard Kanji, strictly reflecting the ACTIVE TONE (${tone.toUpperCase()}) and CUSTOM USER CONTEXT.
+  * "kanaReading": Pure phonetic Hiragana reading of the entire Japanese sentence (e.g. "しぶやまでいくらくらいかかりますか？"). This provides the unambiguous reading layer fed directly into TTS speech synthesis so Kanji readings are never mispronounced! For words like 故郷, ALWAYS write "ふるさと" (furusato) in kanaReading.
   * "romaji": Syllable-spaced Hepburn Romaji.
-  * "english": Faithful, accurate English meaning of the generated Japanese phrase (e.g. if the Japanese politely adds "kurai" (about/approximately) or softening particles, explicitly reflect "About how much..." so the traveler understands the exact nuance of what they are saying!).
-  * "nuance": Explanation of why this Japanese phrasing was chosen over alternatives.
+  * "english": Faithful, accurate English meaning of the generated Japanese phrase (e.g. if the Japanese politely adds "kurai" (about/approximately) or colloquial softening particles, explicitly reflect "About how much..." so the traveler understands the exact nuance of what they are saying!).
+  * "nuance": Explanation of why this Japanese phrasing was chosen over alternatives and how it aligns with the tone and context.
   * "situationalIntent": "" (leave empty string for tourist)
   * "suggestedReplies": [] (MUST BE EMPTY ARRAY for tourist! 1-tap polite replies are ONLY generated for the Japanese local staff so the tourist can respond to them!)
 
 - If the speaker spoke or typed JAPANESE:
   * detectedSpeaker MUST BE "local".
   * "japanese": The input Japanese text.
-  * "kanaReading": Pure phonetic Hiragana reading of the Japanese sentence.
+  * "kanaReading": Pure phonetic Hiragana reading of the Japanese sentence. For words like 故郷, ALWAYS write "ふるさと" (furusato).
   * "romaji": Hepburn Romaji for the Japanese.
   * "english": Natural English translation of what they said.
   * "situationalIntent": What the clerk/local actually means in this situation (e.g. asking for bags, bento heating, chopsticks, point cards, receipts, payments).
-  * "suggestedReplies": 2 to 4 quick, polite Japanese response options for the tourist to reply with.`
+  * "suggestedReplies": 2 to 4 quick Japanese response options for the tourist to reply with. Tailor these responses to match the active TONE (${tone.toUpperCase()}) and CUSTOM USER CONTEXT!`
 }
 
 CURRENT SITUATION:
@@ -144,7 +188,8 @@ Respond ONLY with a valid JSON object matching this schema:
   "suggestedReplies": [
     {
       "label": "Short button label in English",
-      "japanese": "Polite natural Japanese reply",
+      "japanese": "Natural Japanese reply matching active tone",
+      "kanaReading": "Pure Hiragana reading",
       "romaji": "Romaji pronunciation",
       "meaning": "English meaning"
     }
@@ -284,6 +329,22 @@ Respond ONLY with a valid JSON object matching this schema:
     if (parsed.detectedSpeaker === 'tourist') {
       parsed.suggestedReplies = [];
       parsed.situationalIntent = '';
+    } else if (parsed.suggestedReplies && Array.isArray(parsed.suggestedReplies)) {
+      // Ensure all suggested replies have unambiguous phonetic readings
+      parsed.suggestedReplies = parsed.suggestedReplies.map((r) => ({
+        ...r,
+        kanaReading: (r.kanaReading || r.japanese || '').replace(/故郷/g, 'ふるさと'),
+      }));
+    }
+
+    // Guarantee kanaReading is populated and disambiguates 故郷 -> ふるさと
+    if (parsed.japanese) {
+      parsed.kanaReading = (parsed.kanaReading || parsed.japanese).replace(/故郷/g, 'ふるさと');
+    }
+
+    parsed.appliedTone = tone;
+    if (customContext?.trim()) {
+      parsed.appliedContext = customContext.trim();
     }
 
     return NextResponse.json(parsed);

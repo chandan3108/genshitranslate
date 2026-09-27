@@ -10,8 +10,9 @@ import { FaceToFaceModal } from '@/components/FaceToFaceModal';
 import { VoiceSettingsModal } from '@/components/VoiceSettingsModal';
 import { CounterBoard } from '@/components/CounterBoard';
 import { SidebarDrawer } from '@/components/SidebarDrawer';
+import { CustomContextModal } from '@/components/CustomContextModal';
 import { SITUATIONS } from '@/lib/situations';
-import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard } from '@/lib/types';
+import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard, Tone } from '@/lib/types';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { playJapaneseSpeech, ensureVoicesLoaded, playChime, unlockMobileAudio } from '@/lib/audio';
 import { Ear, AlertCircle, MicOff } from 'lucide-react';
@@ -19,6 +20,9 @@ import { Ear, AlertCircle, MicOff } from 'lucide-react';
 export default function Home() {
   const [situationId, setSituationId] = useState<SituationId>('konbini');
   const [speaker, setSpeaker] = useState<Speaker>('auto'); // Default: Auto-Detect
+  const [tone, setTone] = useState<Tone>('polite');
+  const [customContext, setCustomContext] = useState<string>('');
+  const [showContextModal, setShowContextModal] = useState<boolean>(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [continuousMode, setContinuousMode] = useState(false);
@@ -45,16 +49,34 @@ export default function Home() {
   continuousModeRef.current = continuousMode;
   const ambientCopilotRef = useRef(ambientCopilot);
   ambientCopilotRef.current = ambientCopilot;
+  const toneRef = useRef(tone);
+  toneRef.current = tone;
+  const customContextRef = useRef(customContext);
+  customContextRef.current = customContext;
 
   const currentSituation = SITUATIONS[situationId] || SITUATIONS.konbini;
 
-  // Load saved turns, pre-warm audio voices, and register PWA service worker
+  // Load saved turns, tone, custom context, pre-warm audio voices, and register PWA service worker
   useEffect(() => {
     ensureVoicesLoaded();
     try {
+      const savedTone = localStorage.getItem('genshi_tone') as Tone;
+      if (savedTone && ['casual', 'polite', 'formal'].includes(savedTone)) {
+        setTone(savedTone);
+      }
+      const savedContext = localStorage.getItem('genshi_custom_context');
+      if (savedContext) {
+        setCustomContext(savedContext);
+      }
       const saved = localStorage.getItem('genshi_turns');
       if (saved) {
-        setTurns(JSON.parse(saved));
+        const parsed: Turn[] = JSON.parse(saved);
+        // Guarantee all turns have furusato reading for 故郷
+        const sanitized = parsed.map((t) => ({
+          ...t,
+          kanaReading: (t.kanaReading || t.japanese || '').replace(/故郷/g, 'ふるさと'),
+        }));
+        setTurns(sanitized);
       }
       const savedSituation = localStorage.getItem('genshi_situation') as SituationId;
       if (savedSituation && SITUATIONS[savedSituation]) {
@@ -127,6 +149,8 @@ export default function Home() {
             situation: situationId,
             history: historyPayload,
             ambientFilter: ambientCopilotRef.current,
+            tone: toneRef.current,
+            customContext: customContextRef.current,
           }),
         });
 
@@ -215,6 +239,8 @@ export default function Home() {
             situation: situationId,
             history: historyPayload,
             ambientFilter: ambientCopilotRef.current,
+            tone: toneRef.current,
+            customContext: customContextRef.current,
           }),
         });
 
@@ -353,60 +379,68 @@ export default function Home() {
 
   // Handle 1-tap quick reply selection
   const handleSelectReply = (reply: SuggestedReply) => {
+    const kana = reply.kanaReading || reply.japanese.replace(/故郷/g, 'ふるさと');
     const newTurn: Turn = {
       id: Math.random().toString(36).substring(2, 9),
       timestamp: Date.now(),
       speaker: 'tourist',
       input: reply.meaning,
       japanese: reply.japanese,
+      kanaReading: kana,
       romaji: reply.romaji,
       english: reply.meaning,
       nuance: `Quick reply: "${reply.meaning}"`,
     };
     setTurns((prev) => [...prev, newTurn]);
-    playJapaneseSpeech(reply.japanese);
+    playJapaneseSpeech(reply.japanese, kana);
   };
 
   // Handle Quick Action chip from SituationBar
   const handleSelectQuickAction = (action: QuickAction) => {
+    const kana = action.kanaReading || action.japanese.replace(/故郷/g, 'ふるさと');
     const newTurn: Turn = {
       id: Math.random().toString(36).substring(2, 9),
       timestamp: Date.now(),
       speaker: 'tourist',
       input: action.english,
       japanese: action.japanese,
+      kanaReading: kana,
       romaji: action.romaji,
       english: action.english,
       nuance: `Quick phrase for ${currentSituation.name}`,
     };
     setTurns((prev) => [...prev, newTurn]);
-    playJapaneseSpeech(action.japanese);
+    playJapaneseSpeech(action.japanese, kana);
   };
 
   // Handle Counter Card selection
   const handleSelectCounterCard = (card: CounterCard) => {
+    const kana = card.kanaReading || card.japanese.replace(/故郷/g, 'ふるさと');
     const newTurn: Turn = {
       id: Math.random().toString(36).substring(2, 9),
       timestamp: Date.now(),
       speaker: 'tourist',
       input: card.english,
       japanese: card.japanese,
+      kanaReading: kana,
       romaji: card.romaji,
       english: card.english,
       nuance: `Counter phrase: ${card.label}`,
     };
     setTurns((prev) => [...prev, newTurn]);
-    playJapaneseSpeech(card.japanese);
+    playJapaneseSpeech(card.japanese, kana);
     setShowCounterBoard(false);
   };
 
   const handleEnlargeCounterCard = (card: CounterCard) => {
+    const kana = card.kanaReading || card.japanese.replace(/故郷/g, 'ふるさと');
     setShowStaffCardTurn({
       id: card.id,
       timestamp: Date.now(),
       speaker: 'tourist',
       input: card.english,
       japanese: card.japanese,
+      kanaReading: kana,
       romaji: card.romaji,
       english: card.english,
     });
@@ -448,6 +482,15 @@ export default function Home() {
         onSelectSituation={(id) => setSituationId(id)}
         continuousMode={continuousMode}
         ambientCopilot={ambientCopilot}
+        tone={tone}
+        customContext={customContext}
+        onSelectTone={(newTone) => {
+          setTone(newTone);
+          try {
+            localStorage.setItem('genshi_tone', newTone);
+          } catch (e) {}
+        }}
+        onOpenContextModal={() => setShowContextModal(true)}
         onToggleContinuous={handleToggleContinuous}
         onToggleAmbientCopilot={handleToggleAmbientCopilot}
         onOpenVoiceSettings={() => setShowVoiceSettings(true)}
@@ -469,6 +512,9 @@ export default function Home() {
       <SituationBar
         currentSituation={currentSituation}
         onSelectQuickAction={handleSelectQuickAction}
+        tone={tone}
+        hasCustomContext={!!customContext.trim()}
+        onOpenContextModal={() => setShowContextModal(true)}
       />
 
       {/* Ambient Copilot Banner when active */}
@@ -576,6 +622,26 @@ export default function Home() {
       {showVoiceSettings && (
         <VoiceSettingsModal onClose={() => setShowVoiceSettings(false)} />
       )}
+
+      {/* AI Tone & Custom Context Modal */}
+      <CustomContextModal
+        isOpen={showContextModal}
+        onClose={() => setShowContextModal(false)}
+        tone={tone}
+        onToneChange={(newTone) => {
+          setTone(newTone);
+          try {
+            localStorage.setItem('genshi_tone', newTone);
+          } catch (e) {}
+        }}
+        customContext={customContext}
+        onCustomContextChange={(newCtx) => {
+          setCustomContext(newCtx);
+          try {
+            localStorage.setItem('genshi_custom_context', newCtx);
+          } catch (e) {}
+        }}
+      />
     </main>
   );
 }

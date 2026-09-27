@@ -15,8 +15,9 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { SITUATIONS } from '@/lib/situations';
-import { SituationConfig, SituationId } from '@/lib/types';
+import { SituationConfig, SituationId, Tone } from '@/lib/types';
 import { SituationIcon } from './SituationIcon';
+import { Sliders } from 'lucide-react';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ interface SidebarDrawerProps {
   onSelectSituation: (id: SituationId) => void;
   continuousMode: boolean;
   ambientCopilot: boolean;
+  tone: Tone;
+  customContext: string;
+  onSelectTone: (tone: Tone) => void;
+  onOpenContextModal: () => void;
   onToggleContinuous: () => void;
   onToggleAmbientCopilot: () => void;
   onOpenVoiceSettings: () => void;
@@ -40,6 +45,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onSelectSituation,
   continuousMode,
   ambientCopilot,
+  tone,
+  customContext,
+  onSelectTone,
+  onOpenContextModal,
   onToggleContinuous,
   onToggleAmbientCopilot,
   onOpenVoiceSettings,
@@ -123,6 +132,88 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 );
               })}
             </div>
+          </div>
+
+          {/* Section: AI Tone & Custom Context */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">
+                AI Tone & Context
+              </span>
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenContextModal();
+                }}
+                className="text-[10px] text-japan-cherry hover:text-white transition-colors font-medium"
+              >
+                Customize
+              </button>
+            </div>
+
+            {/* Quick 3-Way Tone Switcher */}
+            <div className="grid grid-cols-3 gap-1 bg-japan-slate/60 p-1 rounded-xl border border-japan-border/60">
+              <button
+                onClick={() => onSelectTone('casual')}
+                className={`py-1.5 px-1 rounded-lg text-center transition-all ${
+                  tone === 'casual'
+                    ? 'bg-amber-500 text-black font-bold shadow-sm'
+                    : 'text-gray-300 hover:text-white'
+                }`}
+                title="Casual / Friendly (ため口) - No keigo"
+              >
+                <span className="text-[11px] block leading-tight">Casual</span>
+                <span className="text-[9px] opacity-80 block leading-tight">ため口</span>
+              </button>
+
+              <button
+                onClick={() => onSelectTone('polite')}
+                className={`py-1.5 px-1 rounded-lg text-center transition-all ${
+                  tone === 'polite'
+                    ? 'bg-japan-crimson text-white font-bold shadow-sm'
+                    : 'text-gray-300 hover:text-white'
+                }`}
+                title="Standard Travel Polite (丁寧語 - です/ます)"
+              >
+                <span className="text-[11px] block leading-tight">Polite</span>
+                <span className="text-[9px] opacity-80 block leading-tight">丁寧語</span>
+              </button>
+
+              <button
+                onClick={() => onSelectTone('formal')}
+                className={`py-1.5 px-1 rounded-lg text-center transition-all ${
+                  tone === 'formal'
+                    ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                    : 'text-gray-300 hover:text-white'
+                }`}
+                title="Formal / Business Keigo (敬語)"
+              >
+                <span className="text-[11px] block leading-tight">Formal</span>
+                <span className="text-[9px] opacity-80 block leading-tight">敬語</span>
+              </button>
+            </div>
+
+            {/* Custom Context Preview Card */}
+            <button
+              onClick={() => {
+                onClose();
+                onOpenContextModal();
+              }}
+              className="w-full p-2.5 rounded-xl bg-japan-card/60 border border-japan-border/60 hover:bg-japan-slate text-left flex items-center justify-between transition-colors group"
+            >
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Sliders className="w-3.5 h-3.5 text-japan-gold flex-shrink-0" />
+                  <span className="text-xs font-semibold text-gray-200">
+                    {customContext ? 'Traveler Context Active' : 'Custom Context'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 truncate">
+                  {customContext ? customContext : 'Dietary, companions, social notes...'}
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors flex-shrink-0" />
+            </button>
           </div>
 
           {/* Section 2: Listening & Dialogue Modes */}

@@ -15,8 +15,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Text query parameter is required' }, { status: 400 });
     }
 
-    const cleanText = text.trim().slice(0, 200); // limit length for single utterance
-    const cacheKey = `${lang}:${cleanText}`;
+    // Normalize ambiguous Kanji to guaranteed Hiragana pronunciation (e.g. 故郷 -> ふるさと)
+    const phoneticText = text
+      .trim()
+      .slice(0, 200)
+      .replace(/故郷/g, 'ふるさと');
+
+    const cacheKey = `${lang}:${phoneticText}`;
 
     if (audioCache.has(cacheKey)) {
       const cached = audioCache.get(cacheKey)!;
@@ -31,7 +36,7 @@ export async function GET(req: NextRequest) {
     // Google Translate TTS endpoint with high-definition Japanese neural pronunciation
     const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(
       lang
-    )}&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
+    )}&client=tw-ob&q=${encodeURIComponent(phoneticText)}`;
 
     const response = await fetch(ttsUrl, {
       headers: {

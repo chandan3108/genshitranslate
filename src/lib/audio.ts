@@ -139,8 +139,9 @@ export async function playJapaneseSpeech(
     pitch = customRateOrPitch;
   }
 
-  // Use unambiguous phonetic reading if available, else standard text
-  const textToSpeak = (kanaReading && kanaReading.trim()) ? kanaReading.trim() : text.trim();
+  // Disambiguate Kanji known to produce incorrect On'yomi in conversational TTS (e.g. 故郷 -> ふるさと)
+  const rawText = (kanaReading && kanaReading.trim()) ? kanaReading.trim() : text.trim();
+  const textToSpeak = rawText.replace(/故郷/g, 'ふるさと');
   const savedRate = customRate ?? parseFloat(localStorage.getItem('genshi_voice_rate') || '0.95');
 
   // Method 1: High-fidelity Neural Audio stream via /api/tts (works 100% on iOS Safari, Android, PWA)

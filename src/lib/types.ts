@@ -11,8 +11,11 @@ export type SituationId =
 
 export type Speaker = 'tourist' | 'local' | 'auto';
 
+export type Tone = 'polite' | 'casual' | 'formal';
+
 export interface ExpectedPhrase {
   japanese: string;
+  kanaReading?: string;
   romaji: string;
   english: string;
   tip?: string;
@@ -22,6 +25,7 @@ export interface QuickAction {
   label: string;
   english: string;
   japanese: string;
+  kanaReading?: string;
   romaji: string;
   situation: SituationId;
 }
@@ -31,6 +35,7 @@ export interface CounterCard {
   category: SituationId;
   label: string;
   japanese: string;
+  kanaReading?: string;
   romaji: string;
   english: string;
   icon?: string;
@@ -51,6 +56,7 @@ export interface SituationConfig {
 export interface SuggestedReply {
   label: string;
   japanese: string;
+  kanaReading?: string;
   romaji: string;
   meaning: string;
 }
@@ -86,6 +92,8 @@ export interface TranslationRequest {
   audioBase64?: string;
   audioMimeType?: string;
   ambientFilter?: boolean; // When true: ignores English conversations, only captures Japanese!
+  tone?: Tone; // 'polite' (standard travel keigo/desu-masu), 'casual' (plain form / izakaya talk), 'formal' (business)
+  customContext?: string; // User-provided custom situation notes (e.g. vegetarian, with kids, friend conversation)
 }
 
 export interface TranslationResponse {
@@ -101,4 +109,6 @@ export interface TranslationResponse {
   nuance: string;
   culturalTip: string;
   suggestedReplies: SuggestedReply[];
+  appliedTone?: Tone;
+  appliedContext?: string;
 }
