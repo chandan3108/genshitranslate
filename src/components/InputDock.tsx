@@ -13,6 +13,7 @@ interface InputDockProps {
   recordingDuration: number;
   onToggleRecording: () => void;
   isLoading: boolean;
+  recorderError?: string | null;
 }
 
 export const InputDock: React.FC<InputDockProps> = ({
@@ -24,6 +25,7 @@ export const InputDock: React.FC<InputDockProps> = ({
   recordingDuration,
   onToggleRecording,
   isLoading,
+  recorderError,
 }) => {
   const [inputText, setInputText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +109,13 @@ export const InputDock: React.FC<InputDockProps> = ({
             <span className="text-xs font-mono text-red-300 ml-2">
               0:0{recordingDuration}
             </span>
+          </div>
+        )}
+
+        {/* Error notice if microphone is blocked */}
+        {recorderError && (
+          <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/60 text-xs text-red-200 flex items-center justify-between gap-2 animate-fadeIn">
+            <span>⚠️ {recorderError}</span>
           </div>
         )}
 

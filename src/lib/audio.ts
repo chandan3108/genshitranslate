@@ -65,72 +65,170 @@ export function getAvailableJapaneseVoices(): VoiceOption[] {
   });
 }
 
-export async function playJapaneseSpeech(text: string, customRate?: number, customPitch?: number): Promise<void> {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+// Global HTML5 Audio instance for mobile-friendly playback
+let globalAudioPlayer: HTMLAudioElement | null = null;
+let isAudioUnlocked = false;
 
-  // Crucial: Wait for the browser to populate the speech voice list
-  await ensureVoicesLoaded();
-
-  return new Promise((resolve) => {
-    window.speechSynthesis.cancel(); // cancel any ongoing speech
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-
-    // Retrieve saved user settings
-    const savedRate = customRate ?? parseFloat(localStorage.getItem('genshi_voice_rate') || '0.92');
-    const savedPitch = customPitch ?? parseFloat(localStorage.getItem('genshi_voice_pitch') || '1.02');
-    const savedVoiceName = localStorage.getItem('genshi_voice_name');
-
-    utterance.rate = savedRate;
-    utterance.pitch = savedPitch;
-
-    const available = getAvailableJapaneseVoices();
-    if (available.length > 0) {
-      if (savedVoiceName) {
-        const found = available.find(v => v.name === savedVoiceName);
-        if (found) {
-          utterance.voice = found.voice;
-        } else {
-          utterance.voice = available[0].voice;
-        }
-      } else {
-        // Default to best ranked voice (e.g. Enhanced Kyoko, Flo, or Google)
-        utterance.voice = available[0].voice;
-      }
-    }
-
-    utterance.onend = () => resolve();
-    utterance.onerror = (e) => {
-      console.warn('Speech synthesis error:', e);
-      resolve();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  });
+function getGlobalAudio(): HTMLAudioElement | null {
+  if (typeof window === 'undefined') return null;
+  if (!globalAudioPlayer) {
+    globalAudioPlayer = new Audio();
+    // Allow playsinline on mobile iOS
+    globalAudioPlayer.setAttribute('playsinline', 'true');
+  }
+  return globalAudioPlayer;
 }
 
-export function playEnglishSpeech(text: string): Promise<void> {
+/**
+ * Call this on any user touch/click to unlock mobile browser audio restrictions (especially iOS Safari).
+ */
+export function unlockMobileAudio() {
+  if (typeof window === 'undefined' || isAudioUnlocked) return;
+  isAudioUnlocked = true;
+
+  try {
+    // 1. Unlock HTML5 Audio
+    const audio = getGlobalAudio();
+    if (audio) {
+      // Play a short silent base64 audio snippet
+      audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+      audio.play().then(() => {
+        audio.pause();
+      }).catch(() => {});
+    }
+
+    // 2. Warm up SpeechSynthesis on iOS
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      const silent = new SpeechSynthesisUtterance(' ');
+      silent.volume = 0.01;
+      silent.rate = 10;
+      window.speechSynthesis.speak(silent);
+    }
+  } catch (e) {}
+}
+
+/**
+ * Plays Japanese speech using studio-grade neural TTS via /api/tts,
+ * with automatic fallback to browser SpeechSynthesis if offline.
+ */
+export async function playJapaneseSpeech(text: string, customRate?: number, customPitch?: number): Promise<void> {
+  if (typeof window === 'undefined' || !text.trim()) return;
+
+  unlockMobileAudio();
+
+  const savedRate = customRate ?? parseFloat(localStorage.getItem('genshi_voice_rate') || '0.95');
+
+  // Method 1: High-fidelity Neural Audio stream via /api/tts (works 100% on iOS Safari, Android, PWA)
+  try {
+    const audio = getGlobalAudio();
+    if (audio) {
+      return new Promise<void>((resolve) => {
+        const ttsUrl = `/api/tts?text=${encodeURIComponent(text.trim())}&lang=ja`;
+        audio.src = ttsUrl;
+        audio.playbackRate = Math.max(0.75, Math.min(1.5, savedRate));
+
+        let hasResolved = false;
+        const cleanup = () => {
+          if (!hasResolved) {
+            hasResolved = true;
+            audio.removeEventListener('ended', handleEnd);
+            audio.removeEventListener('error', handleError);
+            resolve();
+          }
+        };
+
+        const handleEnd = () => cleanup();
+        const handleError = () => {
+          cleanup();
+          // Fall back to SpeechSynthesis if network/upstream fails
+          playSpeechSynthesisFallback(text, savedRate, customPitch);
+        };
+
+        audio.addEventListener('ended', handleEnd);
+        audio.addEventListener('error', handleError);
+
+        audio.play().catch((err) => {
+          console.warn('HTML5 audio play error, falling back to speech synthesis:', err);
+          cleanup();
+          playSpeechSynthesisFallback(text, savedRate, customPitch);
+        });
+      });
+    }
+  } catch (e) {
+    console.warn('TTS streaming failed, attempting synthesis fallback:', e);
+  }
+
+  // Fallback to local SpeechSynthesis
+  return playSpeechSynthesisFallback(text, savedRate, customPitch);
+}
+
+function playSpeechSynthesisFallback(text: string, rate: number, pitch?: number): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       resolve();
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 1.0;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    window.speechSynthesis.speak(utterance);
+
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = rate;
+      if (pitch) utterance.pitch = pitch;
+
+      const available = getAvailableJapaneseVoices();
+      const savedVoiceName = localStorage.getItem('genshi_voice_name');
+      if (available.length > 0) {
+        const found = savedVoiceName ? available.find((v) => v.name === savedVoiceName) : null;
+        utterance.voice = found ? found.voice : available[0].voice;
+      }
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      resolve();
+    }
+  });
+}
+
+export function playEnglishSpeech(text: string): Promise<void> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 1.0;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      resolve();
+    }
   });
 }
 
 // Gentle pleasant beep for voice start/stop feedback
 export function playChime(type: 'start' | 'stop' | 'success') {
-  if (typeof window === 'undefined' || !window.AudioContext) return;
+  if (typeof window === 'undefined') return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);

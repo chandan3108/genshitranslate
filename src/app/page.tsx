@@ -12,7 +12,7 @@ import { CounterBoard } from '@/components/CounterBoard';
 import { SITUATIONS } from '@/lib/situations';
 import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard } from '@/lib/types';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { playJapaneseSpeech, ensureVoicesLoaded, playChime } from '@/lib/audio';
+import { playJapaneseSpeech, ensureVoicesLoaded, playChime, unlockMobileAudio } from '@/lib/audio';
 import { Ear } from 'lucide-react';
 
 export default function Home() {
@@ -50,6 +50,15 @@ export default function Home() {
       }
     } catch (e) {}
 
+    // Unlock mobile audio on first user touch / click
+    const handleFirstTouch = () => {
+      unlockMobileAudio();
+      window.removeEventListener('touchstart', handleFirstTouch);
+      window.removeEventListener('click', handleFirstTouch);
+    };
+    window.addEventListener('touchstart', handleFirstTouch, { passive: true });
+    window.addEventListener('click', handleFirstTouch);
+
     // Register PWA service worker
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       window.addEventListener('load', () => {
@@ -58,6 +67,11 @@ export default function Home() {
         });
       });
     }
+
+    return () => {
+      window.removeEventListener('touchstart', handleFirstTouch);
+      window.removeEventListener('click', handleFirstTouch);
+    };
   }, []);
 
   // Save turns to localStorage
@@ -79,6 +93,7 @@ export default function Home() {
   const handleSendMessage = useCallback(
     async (text: string, activeSpeaker: Speaker) => {
       if (!text.trim() || isLoading) return;
+      unlockMobileAudio();
       setIsLoading(true);
       setErrorMessage(null);
 
@@ -158,6 +173,7 @@ export default function Home() {
   // Send spoken audio to Gemini for direct multimodal transcription & translation!
   const handleAudioRecorded = useCallback(
     async (base64Audio: string, mimeType: string) => {
+      unlockMobileAudio();
       setIsLoading(true);
       setErrorMessage(null);
 
@@ -448,6 +464,7 @@ export default function Home() {
         recordingDuration={recordingDuration}
         onToggleRecording={toggleRecording}
         isLoading={isLoading}
+        recorderError={recorderError}
       />
 
       {/* Full-Screen "Show to Staff" Flip Card */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { playChime } from '@/lib/audio';
+import { playChime, unlockMobileAudio } from '@/lib/audio';
 
 interface UseAudioRecorderProps {
   onAudioRecorded: (base64Audio: string, mimeType: string) => void;
@@ -94,93 +94,92 @@ export const useAudioRecorder = ({
         throw new Error('Audio recording is not supported in this browser.');
       }
 
-      // 1. Capture microphone stream
+      // Unlock mobile audio session
+      unlockMobileAudio();
+
+      // 1. Capture microphone stream directly from device
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
         },
       });
       rawStreamRef.current = stream;
 
-      // 2. High-Gain Acoustic Pre-Amp & Dynamics Compression Pipeline
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const sourceNode = ctx.createMediaStreamSource(stream);
-
-      // Pre-amp gain boost (boosts distant / quiet voices 1-3 meters away)
-      const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(highGainMultiplier, ctx.currentTime);
-
-      // Dynamics compressor (normalizes loud sounds, prevents clipping distortion)
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-24, ctx.currentTime);
-      compressor.knee.setValueAtTime(30, ctx.currentTime);
-      compressor.ratio.setValueAtTime(12, ctx.currentTime);
-      compressor.attack.setValueAtTime(0.003, ctx.currentTime);
-      compressor.release.setValueAtTime(0.25, ctx.currentTime);
-
-      // Visualizer analyser
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyserRef.current = analyser;
-
-      // Destination stream for MediaRecorder
-      const destNode = ctx.createMediaStreamDestination();
-
-      // Connect graph: source -> gain -> compressor -> destNode
-      sourceNode.connect(gainNode);
-      gainNode.connect(compressor);
-      compressor.connect(destNode);
-      compressor.connect(analyser);
-
-      // Start Visualizer and VAD Loop
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const checkAudioLoop = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length;
-        const normalized = Math.min(1, avg / 128);
-        setAudioLevel(normalized);
-
-        // Voice Activity Detection (VAD)
-        if (autoStopOnSilenceRef.current) {
-          if (normalized > 0.08) {
-            hasSpokenRef.current = true;
-            silenceStartRef.current = null;
-          } else if (hasSpokenRef.current) {
-            if (silenceStartRef.current === null) {
-              silenceStartRef.current = Date.now();
-            } else if (Date.now() - silenceStartRef.current > silenceThresholdRef.current) {
-              stopRecording();
-              return;
-            }
+      // 2. Visualizer and VAD via AudioContext
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === 'suspended') {
+            await ctx.resume().catch(() => {});
           }
+          audioContextRef.current = ctx;
+
+          const sourceNode = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 64;
+          analyserRef.current = analyser;
+
+          // Connect source directly to analyser for visualizer & VAD
+          sourceNode.connect(analyser);
+
+          // Start Visualizer and VAD Loop
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const checkAudioLoop = () => {
+            if (!analyserRef.current) return;
+            analyserRef.current.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const avg = sum / dataArray.length;
+            const normalized = Math.min(1, (avg / 128) * 1.8);
+            setAudioLevel(normalized);
+
+            // Voice Activity Detection (VAD)
+            if (autoStopOnSilenceRef.current) {
+              if (normalized > 0.08) {
+                hasSpokenRef.current = true;
+                silenceStartRef.current = null;
+              } else if (hasSpokenRef.current) {
+                if (silenceStartRef.current === null) {
+                  silenceStartRef.current = Date.now();
+                } else if (Date.now() - silenceStartRef.current > silenceThresholdRef.current) {
+                  stopRecording();
+                  return;
+                }
+              }
+            }
+
+            animationFrameRef.current = requestAnimationFrame(checkAudioLoop);
+          };
+          checkAudioLoop();
         }
-
-        animationFrameRef.current = requestAnimationFrame(checkAudioLoop);
-      };
-      checkAudioLoop();
-
-      // Determine best supported MIME type
-      let mimeType = 'audio/webm';
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4'; // Safari iOS support
-      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-        mimeType = 'audio/ogg;codecs=opus';
+      } catch (visErr) {
+        console.warn('Visualizer setup warning:', visErr);
       }
 
-      // Record from the pre-amplified, normalized destination stream!
-      const recorder = new MediaRecorder(destNode.stream, { mimeType });
+      // 3. Determine best supported MIME type on this device
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+        const candidates = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+          'audio/aac',
+          'audio/ogg;codecs=opus',
+        ];
+        for (const candidate of candidates) {
+          if (MediaRecorder.isTypeSupported(candidate)) {
+            mimeType = candidate;
+            break;
+          }
+        }
+      }
+
+      // Record directly from the native microphone stream (critical for iOS Safari compatibility!)
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
@@ -191,20 +190,21 @@ export const useAudioRecorder = ({
 
       recorder.onstop = async () => {
         playChime('stop');
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const effectiveMime = recorder.mimeType || mimeType || 'audio/mp4';
+        const audioBlob = new Blob(audioChunksRef.current, { type: effectiveMime });
         if (audioBlob.size > 0) {
           const reader = new FileReader();
           reader.readAsDataURL(audioBlob);
           reader.onloadend = () => {
             const base64Data = (reader.result as string).split(',')[1];
             if (base64Data && onAudioRecordedRef.current) {
-              onAudioRecordedRef.current(base64Data, mimeType.split(';')[0]);
+              onAudioRecordedRef.current(base64Data, effectiveMime.split(';')[0]);
             }
           };
         }
       };
 
-      recorder.start(250);
+      recorder.start(500);
       setIsRecording(true);
       playChime('start');
 
@@ -213,15 +213,15 @@ export const useAudioRecorder = ({
         setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
       }, 500);
     } catch (err: any) {
-      console.error('Failed to start high-gain recording:', err);
+      console.error('Failed to start recording:', err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setRecorderError('Microphone blocked. Please click the tune/lock icon in your address bar to allow microphone.');
+        setRecorderError('Microphone blocked. Please grant microphone access in your browser / phone settings.');
       } else {
         setRecorderError(err.message || 'Could not access microphone.');
       }
       setIsRecording(false);
     }
-  }, [highGainMultiplier, stopRecording]);
+  }, [stopRecording]);
 
   const toggleRecording = useCallback(() => {
     if (isRecording) {
