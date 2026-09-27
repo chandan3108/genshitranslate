@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Mic, Square, Send, Sparkles, Radio } from 'lucide-react';
+import { Mic, Square, Send, Sparkles, Radio, User, Languages, AlertCircle } from 'lucide-react';
 import { Speaker } from '@/lib/types';
 
 interface InputDockProps {
@@ -51,14 +51,16 @@ export const InputDock: React.FC<InputDockProps> = ({
     if (currentSpeaker === 'tourist') {
       return (
         <span className="flex items-center gap-1.5 text-japan-cherry font-bold">
-          <span>🇺🇸 You Speak (English)</span>
-          <span className="text-[10px] text-gray-400 font-normal">→ 日本語</span>
+          <User className="w-3.5 h-3.5" />
+          <span>English Input</span>
+          <span className="text-[10px] text-gray-400 font-normal">→ Japanese</span>
         </span>
       );
     }
     return (
       <span className="flex items-center gap-1.5 text-japan-gold font-bold">
-        <span>🇯🇵 Staff Speaks (日本語)</span>
+        <Languages className="w-3.5 h-3.5" />
+        <span>Japanese Input</span>
         <span className="text-[10px] text-gray-400 font-normal">→ English</span>
       </span>
     );
@@ -114,8 +116,9 @@ export const InputDock: React.FC<InputDockProps> = ({
 
         {/* Error notice if microphone is blocked */}
         {recorderError && (
-          <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/60 text-xs text-red-200 flex items-center justify-between gap-2 animate-fadeIn">
-            <span>⚠️ {recorderError}</span>
+          <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/60 text-xs text-red-200 flex items-center gap-2 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>{recorderError}</span>
           </div>
         )}
 
@@ -152,12 +155,12 @@ export const InputDock: React.FC<InputDockProps> = ({
               onChange={(e) => setInputText(e.target.value)}
               placeholder={
                 isRecording
-                  ? 'Listening... pause talking to auto-send'
+                  ? 'Listening... pause to translate'
                   : currentSpeaker === 'auto'
-                  ? 'Type in English or Japanese (e.g. "I want to visit Kyoto" or "袋は？")'
+                  ? 'Type or tap mic to speak...'
                   : currentSpeaker === 'tourist'
-                  ? 'Type English (e.g. "I want to visit Kyoto")'
-                  : 'Type Japanese (e.g. "袋はご利用ですか？")'
+                  ? 'Type in English...'
+                  : 'Type in Japanese...'
               }
               disabled={isLoading || isRecording}
               className="w-full bg-japan-card/90 text-white placeholder-gray-400 rounded-2xl px-4 py-3 text-xs sm:text-sm border border-japan-border focus:outline-none focus:ring-2 focus:ring-japan-cherry/50 focus:border-japan-cherry transition-all shadow-inner disabled:opacity-60"

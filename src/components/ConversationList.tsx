@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Turn, SuggestedReply } from '@/lib/types';
-import { Volume2, Maximize2, Lightbulb, HelpCircle, MessageSquareQuote, CheckCircle2, ChevronRight, User, Store } from 'lucide-react';
+import { Volume2, Maximize2, Lightbulb, HelpCircle, MessageSquareQuote, CheckCircle2, ChevronRight, User, Store, Languages, Info } from 'lucide-react';
 import { playJapaneseSpeech, playEnglishSpeech } from '@/lib/audio';
 
 interface ConversationListProps {
@@ -27,11 +27,11 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   if (turns.length === 0 && !isLoading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400 space-y-4">
-        <div className="w-16 h-16 rounded-full bg-japan-card border border-japan-border flex items-center justify-center text-2xl shadow-inner">
-          🗾
+        <div className="w-16 h-16 rounded-2xl bg-japan-card border border-japan-border flex items-center justify-center shadow-inner">
+          <Languages className="w-8 h-8 text-japan-cherry" />
         </div>
         <div className="max-w-md space-y-1.5">
-          <h2 className="text-base font-bold text-white">言視 (Genshi) is Ready</h2>
+          <h2 className="text-base font-bold text-white">Genshi is Ready</h2>
           <p className="text-xs text-gray-400 leading-relaxed">
             Choose your venue above, then tap the mic or type. When locals speak, Genshi decodes their hidden intent and gives you 1-tap polite replies.
           </p>
@@ -159,8 +159,9 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                         {turn.nuance}
                       </p>
                       {turn.culturalTip && (
-                        <p className="text-[10px] text-japan-gold pt-1 border-t border-japan-border/40">
-                          🏮 <span className="font-semibold">Etiquette Tip:</span> {turn.culturalTip}
+                        <p className="text-[10px] text-japan-gold pt-1 border-t border-japan-border/40 flex items-start gap-1">
+                          <Info className="w-3 h-3 text-japan-gold mt-0.5 flex-shrink-0" />
+                          <span><span className="font-semibold">Cultural Note:</span> {turn.culturalTip}</span>
                         </p>
                       )}
                     </div>

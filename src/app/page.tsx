@@ -9,11 +9,12 @@ import { ShowStaffCard } from '@/components/ShowStaffCard';
 import { FaceToFaceModal } from '@/components/FaceToFaceModal';
 import { VoiceSettingsModal } from '@/components/VoiceSettingsModal';
 import { CounterBoard } from '@/components/CounterBoard';
+import { SidebarDrawer } from '@/components/SidebarDrawer';
 import { SITUATIONS } from '@/lib/situations';
 import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard } from '@/lib/types';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { playJapaneseSpeech, ensureVoicesLoaded, playChime, unlockMobileAudio } from '@/lib/audio';
-import { Ear } from 'lucide-react';
+import { Ear, AlertCircle } from 'lucide-react';
 
 export default function Home() {
   const [situationId, setSituationId] = useState<SituationId>('konbini');
@@ -22,6 +23,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [continuousMode, setContinuousMode] = useState(false);
   const [ambientCopilot, setAmbientCopilot] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showStaffCardTurn, setShowStaffCardTurn] = useState<Turn | null>(null);
   const [showFaceToFace, setShowFaceToFace] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
@@ -391,24 +393,34 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col h-screen overflow-hidden bg-japan-indigo">
-      {/* Top Header */}
-      <Header
+      {/* Slide-out Navigation Drawer */}
+      <SidebarDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
         currentSituation={currentSituation}
+        onSelectSituation={(id) => setSituationId(id)}
         continuousMode={continuousMode}
         ambientCopilot={ambientCopilot}
         onToggleContinuous={handleToggleContinuous}
         onToggleAmbientCopilot={handleToggleAmbientCopilot}
-        onOpenCounterBoard={() => setShowCounterBoard(true)}
-        onOpenFaceToFace={() => setShowFaceToFace(true)}
         onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+        onOpenFaceToFace={() => setShowFaceToFace(true)}
         onClearHistory={handleClearHistory}
         historyCount={turns.length}
+      />
+
+      {/* Top Header */}
+      <Header
+        currentSituation={currentSituation}
+        onOpenDrawer={() => setIsDrawerOpen(true)}
+        onOpenCounterBoard={() => setShowCounterBoard(true)}
+        ambientCopilot={ambientCopilot}
+        continuousMode={continuousMode}
       />
 
       {/* Situation Picker & Quick Chips */}
       <SituationBar
         currentSituation={currentSituation}
-        onSelectSituation={(id) => setSituationId(id)}
         onSelectQuickAction={handleSelectQuickAction}
       />
 
@@ -433,7 +445,10 @@ export default function Home() {
       {/* Error Banner */}
       {displayedError && (
         <div className="bg-red-500/20 border-b border-red-500/50 text-red-200 text-xs px-4 py-2 flex items-center justify-between animate-fadeIn">
-          <span>⚠️ {displayedError}</span>
+          <span className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>{displayedError}</span>
+          </span>
           <button
             onClick={() => setErrorMessage(null)}
             className="text-xs underline hover:text-white ml-2 flex-shrink-0"

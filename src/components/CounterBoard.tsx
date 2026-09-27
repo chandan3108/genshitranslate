@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Volume2, Maximize2, Sparkles, Send } from 'lucide-react';
+import { X, Volume2, Maximize2, Sparkles, Send, Layers } from 'lucide-react';
 import { COUNTER_CARDS } from '@/lib/counterCards';
 import { CounterCard, SituationId, Turn } from '@/lib/types';
 import { playJapaneseSpeech } from '@/lib/audio';
@@ -28,7 +28,7 @@ export const CounterBoard: React.FC<CounterBoardProps> = ({
         <div className="p-4 border-b border-japan-border flex items-center justify-between bg-japan-indigo/80">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg">📋</span>
+              <Layers className="w-5 h-5 text-japan-gold" />
               <h3 className="font-bold text-sm sm:text-base text-white">
                 Zero-Speaking Counter Board
               </h3>
@@ -56,7 +56,7 @@ export const CounterBoard: React.FC<CounterBoardProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-japan-gold flex items-center gap-1.5">
-                    <span>{card.icon}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-japan-gold" />
                     <span>{card.label}</span>
                   </span>
                   <span className="text-[10px] text-gray-400 italic">
@@ -115,7 +115,7 @@ export const CounterBoard: React.FC<CounterBoardProps> = ({
         {/* Footer */}
         <div className="p-3 border-t border-japan-border text-center bg-japan-indigo/80">
           <p className="text-[11px] text-gray-400">
-            💡 Simply read the pink Romaji syllables out loud to the clerk!
+            Read the Romaji syllables out loud, or tap Show Clerk.
           </p>
         </div>
       </div>

@@ -116,7 +116,7 @@ export const FaceToFaceModal: React.FC<FaceToFaceModalProps> = ({
               </p>
               {lastTurn.situationalIntent && (
                 <p className="text-[11px] text-japan-gold bg-japan-indigo/80 p-1.5 rounded-lg border border-japan-border inline-block max-w-sm">
-                  💡 {lastTurn.situationalIntent}
+                  Note: {lastTurn.situationalIntent}
                 </p>
               )}
             </div>

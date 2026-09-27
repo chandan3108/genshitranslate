@@ -5,7 +5,7 @@ export const SITUATIONS: Record<SituationId, SituationConfig> = {
     id: 'konbini',
     name: 'Konbini',
     japaneseName: 'コンビニ',
-    icon: '🏪',
+    icon: 'konbini',
     badge: 'Convenience Store',
     description: '7-Eleven, Lawson, FamilyMart. Fast transactions, bags, bento heating, point cards.',
     commonPhrasesToExpect: [
@@ -53,7 +53,7 @@ Key questions to expect from clerks:
     id: 'izakaya',
     name: 'Dining & Izakaya',
     japaneseName: '居酒屋・飲食店',
-    icon: '🏮',
+    icon: 'izakaya',
     badge: 'Food & Drinks',
     description: 'Ordering food, calling servers, otoshi cover charge, dietary questions, splitting the bill.',
     commonPhrasesToExpect: [
@@ -90,8 +90,8 @@ Key questions to expect from clerks:
     ],
     systemPromptContext: `SITUATION: Japanese Restaurant / Izakaya / Bar.
 Crucial cultural mechanics:
-- Otoshi (お通し): Small mandatory table snack / seating fee (300-600 yen).
-- Calling staff: Yelling "Sumimasen!" with hand slightly raised is polite and expected.
+- Otoshi: Small mandatory table snack / seating fee (300-600 yen).
+- Calling staff: Raising a hand with "Sumimasen!" is polite and expected.
 - "Rasuto oodaa" (Last order): 30-45 min before closing.
 - "Betsu-betsu de" (separate payments).`
   },
@@ -99,7 +99,7 @@ Crucial cultural mechanics:
     id: 'train',
     name: 'Train & Transit',
     japaneseName: '電車・新幹線',
-    icon: '🚅',
+    icon: 'train',
     badge: 'Station & Transit',
     description: 'IC card gates, Shinkansen reserved seats, platform transfers, lost luggage.',
     commonPhrasesToExpect: [
@@ -132,9 +132,9 @@ Crucial cultural mechanics:
   },
   ramen: {
     id: 'ramen',
-    name: 'Ramen & Ticket Machine',
+    name: 'Ramen Counter',
     japaneseName: 'ラーメン・食券',
-    icon: '🍜',
+    icon: 'ramen',
     badge: 'Counter Dining',
     description: 'Ticket vending machines, noodle firmness (katame), broth thickness, counter manners.',
     commonPhrasesToExpect: [
@@ -169,7 +169,7 @@ Crucial cultural mechanics:
     id: 'taxi',
     name: 'Taxi',
     japaneseName: 'タクシー',
-    icon: '🚕',
+    icon: 'taxi',
     badge: 'Street Taxi',
     description: 'Automatic doors, destinations, landmarks, drop-offs, payment.',
     commonPhrasesToExpect: [
@@ -198,7 +198,7 @@ Crucial cultural mechanics:
     id: 'hotel',
     name: 'Hotel & Ryokan',
     japaneseName: 'ホテル・旅館',
-    icon: '🏨',
+    icon: 'hotel',
     badge: 'Accommodation',
     description: 'Check-in, luggage forwarding (takkyubin), breakfast, onsen rules, shoe removal.',
     commonPhrasesToExpect: [
@@ -233,7 +233,7 @@ Crucial cultural mechanics:
     id: 'shopping',
     name: 'Tax-Free Shopping',
     japaneseName: '免税・買い物',
-    icon: '🛍️',
+    icon: 'shopping',
     badge: 'Retail & Tax-Free',
     description: 'Tax exemption (menzei), passport check, sizes, stock, sealed duty-free bag rules.',
     commonPhrasesToExpect: [
@@ -262,7 +262,7 @@ Crucial cultural mechanics:
     id: 'pharmacy',
     name: 'Pharmacy & Health',
     japaneseName: '薬局・健康',
-    icon: '💊',
+    icon: 'pharmacy',
     badge: 'Drugstore & Medical',
     description: 'Drugstores (Matsumoto Kiyoshi), describing symptoms, fever, pain, allergies.',
     commonPhrasesToExpect: [
@@ -282,7 +282,7 @@ Crucial cultural mechanics:
     quickActions: [
       { label: 'Headache medicine', english: 'Do you have headache medicine (like painkillers)?', japanese: '頭痛薬はありますか？', romaji: 'Zutsuuyaku wa arimasu ka?', situation: 'pharmacy' },
       { label: 'Stomach pain', english: 'My stomach hurts, what medicine do you recommend?', japanese: '胃が痛いのですが、おすすめの薬はありますか？', romaji: 'I ga itai no desu ga, osusume no kusuri wa arimasu ka?', situation: 'pharmacy' },
-      { label: 'Band-Aids / Plasters', english: 'Where are the bandages / band-aids?', japanese: '絆創膏はどこですか？', romaji: 'Bansoukou wa doko desu ka?', situation: 'pharmacy' },
+      { label: 'Bandages', english: 'Where are the bandages / band-aids?', japanese: '絆創膏はどこですか？', romaji: 'Bansoukou wa doko desu ka?', situation: 'pharmacy' },
       { label: 'Motion sickness', english: 'Do you have motion sickness pills?', japanese: '乗り物酔いの薬はありますか？', romaji: 'Norimonoyoi no kusuri wa arimasu ka?', situation: 'pharmacy' }
     ],
     systemPromptContext: `SITUATION: Japanese Drugstore.`
@@ -291,7 +291,7 @@ Crucial cultural mechanics:
     id: 'general',
     name: 'General Exploration',
     japaneseName: '日常・街歩き',
-    icon: '⛩️',
+    icon: 'general',
     badge: 'Street & Sightseeing',
     description: 'Sightseeing, asking directions, photos, general polite interactions.',
     commonPhrasesToExpect: [
