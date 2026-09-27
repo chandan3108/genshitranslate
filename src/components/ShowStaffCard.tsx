@@ -6,6 +6,7 @@ import { playJapaneseSpeech } from '@/lib/audio';
 
 interface ShowStaffCardProps {
   japanese: string;
+  kanaReading?: string;
   romaji: string;
   english: string;
   onClose: () => void;
@@ -13,6 +14,7 @@ interface ShowStaffCardProps {
 
 export const ShowStaffCard: React.FC<ShowStaffCardProps> = ({
   japanese,
+  kanaReading,
   romaji,
   english,
   onClose,
@@ -54,7 +56,7 @@ export const ShowStaffCard: React.FC<ShowStaffCardProps> = ({
       {/* Bottom Controls */}
       <div className="flex items-center justify-center gap-4">
         <button
-          onClick={() => playJapaneseSpeech(japanese)}
+          onClick={() => playJapaneseSpeech(japanese, kanaReading)}
           className="flex items-center gap-2 px-6 py-3 rounded-full bg-japan-crimson hover:bg-red-700 text-white font-semibold text-sm shadow-lg shadow-japan-crimson/40 transition-transform active:scale-95"
         >
           <Volume2 className="w-5 h-5" />

@@ -49,7 +49,7 @@ export const FaceToFaceModal: React.FC<FaceToFaceModalProps> = ({
                 {lastTurn.japanese}
               </p>
               <button
-                onClick={() => playJapaneseSpeech(lastTurn.japanese)}
+                onClick={() => playJapaneseSpeech(lastTurn.japanese, lastTurn.kanaReading)}
                 className="inline-flex items-center gap-1 text-xs text-japan-cherry hover:text-white px-3 py-1 rounded-full bg-japan-card border border-japan-border"
               >
                 <Volume2 className="w-3.5 h-3.5" /> 音声再生

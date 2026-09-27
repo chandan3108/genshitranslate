@@ -156,6 +156,7 @@ export default function Home() {
           speaker: resolvedSpeaker,
           input: text.trim(),
           japanese: data.japanese,
+          kanaReading: data.kanaReading,
           romaji: data.romaji,
           english: data.english,
           situationalIntent: data.situationalIntent,
@@ -167,7 +168,7 @@ export default function Home() {
         setTurns((prev) => [...prev, newTurn]);
 
         if (resolvedSpeaker === 'tourist') {
-          await playJapaneseSpeech(data.japanese);
+          await playJapaneseSpeech(data.japanese, data.kanaReading);
         }
 
         // If continuous mode or ambient copilot is ON, re-arm microphone
@@ -261,6 +262,7 @@ export default function Home() {
           speaker: resolvedSpeaker,
           input: data.transcribedInput || (resolvedSpeaker === 'tourist' ? data.english : data.japanese),
           japanese: data.japanese,
+          kanaReading: data.kanaReading,
           romaji: data.romaji,
           english: data.english,
           situationalIntent: data.situationalIntent,
@@ -272,7 +274,7 @@ export default function Home() {
         setTurns((prev) => [...prev, newTurn]);
 
         if (resolvedSpeaker === 'tourist') {
-          await playJapaneseSpeech(data.japanese);
+          await playJapaneseSpeech(data.japanese, data.kanaReading);
         }
 
         // If continuous live mode or ambient copilot is ON, re-arm microphone
@@ -539,6 +541,7 @@ export default function Home() {
       {showStaffCardTurn && (
         <ShowStaffCard
           japanese={showStaffCardTurn.japanese}
+          kanaReading={showStaffCardTurn.kanaReading}
           romaji={showStaffCardTurn.romaji}
           english={showStaffCardTurn.english}
           onClose={() => setShowStaffCardTurn(null)}

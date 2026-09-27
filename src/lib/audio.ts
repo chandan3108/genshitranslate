@@ -111,12 +111,36 @@ export function unlockMobileAudio() {
 /**
  * Plays Japanese speech using studio-grade neural TTS via /api/tts,
  * with automatic fallback to browser SpeechSynthesis if offline.
+ * 
+ * Supports an explicit phonetic reading layer (kanaReading):
+ * If kanaReading is provided, it is sent to TTS to guarantee 100% unambiguous pronunciation
+ * matching the Romaji (e.g. 故郷 read as ふるさと rather than guessing from Kanji).
  */
-export async function playJapaneseSpeech(text: string, customRate?: number, customPitch?: number): Promise<void> {
+export async function playJapaneseSpeech(
+  text: string,
+  kanaReadingOrRate?: string | number,
+  customRateOrPitch?: number,
+  customPitch?: number
+): Promise<void> {
   if (typeof window === 'undefined' || !text.trim()) return;
 
   unlockMobileAudio();
 
+  let kanaReading: string | undefined;
+  let customRate: number | undefined;
+  let pitch: number | undefined;
+
+  if (typeof kanaReadingOrRate === 'string') {
+    kanaReading = kanaReadingOrRate;
+    customRate = customRateOrPitch;
+    pitch = customPitch;
+  } else if (typeof kanaReadingOrRate === 'number') {
+    customRate = kanaReadingOrRate;
+    pitch = customRateOrPitch;
+  }
+
+  // Use unambiguous phonetic reading if available, else standard text
+  const textToSpeak = (kanaReading && kanaReading.trim()) ? kanaReading.trim() : text.trim();
   const savedRate = customRate ?? parseFloat(localStorage.getItem('genshi_voice_rate') || '0.95');
 
   // Method 1: High-fidelity Neural Audio stream via /api/tts (works 100% on iOS Safari, Android, PWA)
@@ -124,7 +148,7 @@ export async function playJapaneseSpeech(text: string, customRate?: number, cust
     const audio = getGlobalAudio();
     if (audio) {
       return new Promise<void>((resolve) => {
-        const ttsUrl = `/api/tts?text=${encodeURIComponent(text.trim())}&lang=ja`;
+        const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=ja`;
         audio.src = ttsUrl;
         audio.playbackRate = Math.max(0.75, Math.min(1.5, savedRate));
 
@@ -142,7 +166,7 @@ export async function playJapaneseSpeech(text: string, customRate?: number, cust
         const handleError = () => {
           cleanup();
           // Fall back to SpeechSynthesis if network/upstream fails
-          playSpeechSynthesisFallback(text, savedRate, customPitch);
+          playSpeechSynthesisFallback(textToSpeak, savedRate, pitch);
         };
 
         audio.addEventListener('ended', handleEnd);
@@ -151,7 +175,7 @@ export async function playJapaneseSpeech(text: string, customRate?: number, cust
         audio.play().catch((err) => {
           console.warn('HTML5 audio play error, falling back to speech synthesis:', err);
           cleanup();
-          playSpeechSynthesisFallback(text, savedRate, customPitch);
+          playSpeechSynthesisFallback(textToSpeak, savedRate, pitch);
         });
       });
     }
@@ -160,7 +184,7 @@ export async function playJapaneseSpeech(text: string, customRate?: number, cust
   }
 
   // Fallback to local SpeechSynthesis
-  return playSpeechSynthesisFallback(text, savedRate, customPitch);
+  return playSpeechSynthesisFallback(textToSpeak, savedRate, pitch);
 }
 
 function playSpeechSynthesisFallback(text: string, rate: number, pitch?: number): Promise<void> {

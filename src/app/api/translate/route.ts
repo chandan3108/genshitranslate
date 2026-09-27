@@ -76,7 +76,8 @@ RULE:
 - The LOCAL is a Japanese resident or staff member who ONLY speaks Japanese.
 - If the speaker spoke or typed ENGLISH:
   * detectedSpeaker MUST BE "tourist".
-  * "japanese": Natural, polite travel Japanese translation for the tourist to say.
+  * "japanese": Natural, polite travel Japanese translation for the tourist to say with standard Kanji.
+  * "kanaReading": Pure phonetic Hiragana reading of the entire Japanese sentence (e.g. "しぶやまでいくらくらいかかりますか？"). This provides the unambiguous reading layer fed directly into TTS speech synthesis so Kanji readings are never mispronounced!
   * "romaji": Syllable-spaced Hepburn Romaji.
   * "english": Faithful, accurate English meaning of the generated Japanese phrase (e.g. if the Japanese politely adds "kurai" (about/approximately) or softening particles, explicitly reflect "About how much..." so the traveler understands the exact nuance of what they are saying!).
   * "nuance": Explanation of why this Japanese phrasing was chosen over alternatives.
@@ -86,6 +87,7 @@ RULE:
 - If the speaker spoke or typed JAPANESE:
   * detectedSpeaker MUST BE "local".
   * "japanese": The input Japanese text.
+  * "kanaReading": Pure phonetic Hiragana reading of the Japanese sentence.
   * "romaji": Hepburn Romaji for the Japanese.
   * "english": Natural English translation of what they said.
   * "situationalIntent": What the clerk/local actually means in this situation (e.g. asking for bags, bento heating, chopsticks, point cards, receipts, payments).
@@ -113,6 +115,7 @@ AUDIO HUMAN SPEECH VALIDATION RULE:
      "detectedSpeaker": "tourist",
      "transcribedInput": "",
      "japanese": "",
+     "kanaReading": "",
      "romaji": "",
      "english": "",
      "situationalIntent": "",
@@ -131,7 +134,8 @@ Respond ONLY with a valid JSON object matching this schema:
   "noSpeechDetected": false,
   "detectedSpeaker": "tourist | local",
   "transcribedInput": "The exact words spoken in the audio (empty string if no speech)",
-  "japanese": "Japanese text (empty string if no speech)",
+  "japanese": "Japanese text with standard Kanji (empty string if no speech)",
+  "kanaReading": "Pure Hiragana phonetic reading matching the Romaji (empty string if no speech)",
   "romaji": "Hepburn Romaji with clear word/syllable spacing (empty string if no speech)",
   "english": "English text (empty string if no speech)",
   "situationalIntent": "Detailed explanation of what is actually happening in this situation (empty string if no speech)",

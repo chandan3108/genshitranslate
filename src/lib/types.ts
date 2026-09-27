@@ -61,6 +61,7 @@ export interface Turn {
   speaker: 'tourist' | 'local';
   input: string;
   japanese: string;
+  kanaReading?: string; // Pure phonetic reading in Hiragana to eliminate ambiguous Kanji TTS pronunciations
   romaji: string;
   english: string;
   situationalIntent?: string;
@@ -93,6 +94,7 @@ export interface TranslationResponse {
   detectedSpeaker?: 'tourist' | 'local';
   transcribedInput?: string;
   japanese: string;
+  kanaReading?: string; // Pure phonetic reading in Hiragana matching Romaji
   romaji: string;
   english: string;
   situationalIntent: string;
