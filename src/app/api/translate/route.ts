@@ -80,7 +80,8 @@ RULE:
   * "japanese": Natural, polite travel Japanese translation for the tourist to say.
   * "romaji": Syllable-spaced Hepburn Romaji.
   * "nuance": Explanation of why this Japanese phrasing was chosen over alternatives.
-  * "suggestedReplies": Common follow-up questions the tourist might ask.
+  * "situationalIntent": "" (leave empty string for tourist)
+  * "suggestedReplies": [] (MUST BE EMPTY ARRAY for tourist! 1-tap polite replies are ONLY generated for the Japanese local staff so the tourist can respond to them!)
 
 - If the speaker spoke or typed JAPANESE:
   * detectedSpeaker MUST BE "local".
@@ -274,6 +275,11 @@ Respond ONLY with a valid JSON object matching this schema:
       parsed.detectedSpeaker = 'tourist';
     } else if (speaker === 'local') {
       parsed.detectedSpeaker = 'local';
+    }
+
+    if (parsed.detectedSpeaker === 'tourist') {
+      parsed.suggestedReplies = [];
+      parsed.situationalIntent = '';
     }
 
     return NextResponse.json(parsed);

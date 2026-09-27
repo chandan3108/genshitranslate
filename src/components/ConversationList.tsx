@@ -131,7 +131,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
               </div>
 
               {/* Local Mode: Situational Intent Decoder ("What they actually mean") */}
-              {turn.situationalIntent && (
+              {!isTourist && turn.situationalIntent && (
                 <div className="p-2.5 rounded-xl bg-japan-indigo/90 border border-japan-gold/50 text-xs space-y-1">
                   <div className="flex items-center gap-1.5 font-bold text-japan-gold text-[11px] uppercase tracking-wider">
                     <Lightbulb className="w-3.5 h-3.5" />
@@ -169,10 +169,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 </div>
               )}
 
-              {/* Local Mode: 1-Tap Polite Quick Replies */}
-              {turn.suggestedReplies && turn.suggestedReplies.length > 0 && (
+              {/* Local Mode: 1-Tap Polite Quick Replies (Only visible for the other person / Japanese local) */}
+              {!isTourist && turn.suggestedReplies && turn.suggestedReplies.length > 0 && (
                 <div className="pt-2 border-t border-japan-border/60 space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-japan-gold">
                     1-Tap Polite Responses:
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
