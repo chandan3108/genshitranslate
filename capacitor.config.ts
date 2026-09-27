@@ -6,8 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     androidScheme: 'https',
-    // In development or when using live hosted backend, this can point to the server
-    ...(process.env.CAPACITOR_SERVER_URL ? { url: process.env.CAPACITOR_SERVER_URL, cleartext: true } : {}),
+    url: process.env.CAPACITOR_SERVER_URL || 'https://genshitranslate.vercel.app',
+    cleartext: true,
   },
   plugins: {
     StatusBar: {

@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
-// Base backend URL for native iOS/Android builds
-const DEFAULT_REMOTE_BACKEND = 'https://aluminum-advisory-montreal-holdings.trycloudflare.com';
+// Permanent Vercel production domain for native iOS/Android builds
+const DEFAULT_REMOTE_BACKEND = 'https://genshitranslate.vercel.app';
 
 /**
  * Resolves an API endpoint path.
