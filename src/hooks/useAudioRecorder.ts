@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { playChime, unlockMobileAudio } from '@/lib/audio';
+import { hapticTap } from '@/lib/haptics';
 
 interface UseAudioRecorderProps {
   onAudioRecorded: (base64Audio: string, mimeType: string) => void;
@@ -71,6 +72,8 @@ export const useAudioRecorder = ({
   const stopRecording = useCallback(() => {
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') return;
 
+    hapticTap();
+
     if (timerRef.current) clearInterval(timerRef.current);
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
 
@@ -104,6 +107,8 @@ export const useAudioRecorder = ({
     peakAudioLevelRef.current = 0;
     silenceStartRef.current = null;
     recordingStartTimeRef.current = Date.now();
+
+    hapticTap();
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {

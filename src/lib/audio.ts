@@ -1,3 +1,5 @@
+import { getApiUrl } from '@/lib/api';
+
 export interface VoiceOption {
   voice: SpeechSynthesisVoice;
   name: string;
@@ -149,7 +151,7 @@ export async function playJapaneseSpeech(
     const audio = getGlobalAudio();
     if (audio) {
       return new Promise<void>((resolve) => {
-        const ttsUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=ja&v=2`;
+        const ttsUrl = getApiUrl(`/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=ja&v=2`);
         audio.src = ttsUrl;
         audio.playbackRate = Math.max(0.75, Math.min(1.5, savedRate));
 

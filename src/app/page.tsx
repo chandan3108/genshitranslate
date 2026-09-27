@@ -15,6 +15,10 @@ import { SITUATIONS } from '@/lib/situations';
 import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard, Tone } from '@/lib/types';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { playJapaneseSpeech, ensureVoicesLoaded, playChime, unlockMobileAudio } from '@/lib/audio';
+import { getApiUrl } from '@/lib/api';
+import { hapticTap, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { Ear, AlertCircle, MicOff } from 'lucide-react';
 
 export default function Home() {
@@ -84,6 +88,12 @@ export default function Home() {
       }
     } catch (e) {}
 
+    // Initialize native status bar when running in Capacitor
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+      StatusBar.setBackgroundColor({ color: '#0f141c' }).catch(() => {});
+    }
+
     // Unlock mobile audio on first user touch / click
     const handleFirstTouch = () => {
       unlockMobileAudio();
@@ -140,7 +150,7 @@ export default function Home() {
           situationalIntent: t.situationalIntent,
         }));
 
-        const res = await fetch('/api/translate', {
+        const res = await fetch(getApiUrl('/api/translate'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -229,7 +239,7 @@ export default function Home() {
           situationalIntent: t.situationalIntent,
         }));
 
-        const res = await fetch('/api/translate', {
+        const res = await fetch(getApiUrl('/api/translate'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

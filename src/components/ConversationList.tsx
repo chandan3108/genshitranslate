@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Turn, SuggestedReply } from '@/lib/types';
 import { Volume2, Maximize2, Lightbulb, HelpCircle, MessageSquareQuote, CheckCircle2, ChevronRight, User, Store, Languages, Info } from 'lucide-react';
 import { playJapaneseSpeech, playEnglishSpeech } from '@/lib/audio';
+import { hapticTap } from '@/lib/haptics';
 
 interface ConversationListProps {
   turns: Turn[];
@@ -182,7 +183,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                     {turn.suggestedReplies.map((reply, rIdx) => (
                       <button
                         key={rIdx}
-                        onClick={() => onSelectReply(reply)}
+                        onClick={() => {
+                          hapticTap();
+                          onSelectReply(reply);
+                        }}
                         className="text-left p-2.5 rounded-xl bg-japan-slate/70 hover:bg-japan-slate border border-japan-border hover:border-japan-cherry/60 transition-all group flex items-start justify-between gap-2"
                       >
                         <div className="space-y-0.5 min-w-0">
