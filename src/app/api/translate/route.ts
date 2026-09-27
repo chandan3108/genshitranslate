@@ -103,9 +103,28 @@ DESIRED SPEAKER MODE: ${speaker}
 
 ${input ? `CURRENT TEXT INPUT: "${input.trim()}"` : 'AUDIO INPUT ATTACHED: Analyze the audio, determine the language, and process accordingly.'}
 
+STRICT SILENCE & NO-SPEECH RULE:
+- If the audio contains NO intelligible human speech (e.g. pure silence, breathing, microphone rustle, white noise, room hum, static, or background noise without clear words):
+  YOU MUST RETURN ONLY:
+  {
+    "isIgnored": true,
+    "noSpeechDetected": true,
+    "detectedSpeaker": "tourist",
+    "transcribedInput": "",
+    "japanese": "",
+    "romaji": "",
+    "english": "",
+    "situationalIntent": "",
+    "nuance": "",
+    "culturalTip": "",
+    "suggestedReplies": []
+  }
+- CRITICAL WARNING: NEVER fabricate, hallucinate, or auto-generate situational phrases (such as greetings, asking for bags, or ordering items) when no clear human speech is present in the audio!
+
 Respond ONLY with a valid JSON object matching this schema:
 {
   "isIgnored": false,
+  "noSpeechDetected": false,
   "detectedSpeaker": "tourist | local",
   "transcribedInput": "The exact words spoken in the audio (or echo the text input)",
   "japanese": "Japanese text",
@@ -198,8 +217,40 @@ Respond ONLY with a valid JSON object matching this schema:
 
     const parsed: TranslationResponse = JSON.parse(cleanedText);
 
+    // ================= SILENCE & NO-SPEECH GUARD =================
+    if (parsed.noSpeechDetected || parsed.isIgnored) {
+      return NextResponse.json({
+        isIgnored: true,
+        noSpeechDetected: true,
+        japanese: '',
+        romaji: '',
+        english: '',
+        situationalIntent: '',
+        nuance: '',
+        culturalTip: '',
+        suggestedReplies: [],
+      });
+    }
+
+    const transcribed = (parsed.transcribedInput || input || '').trim();
+    // If there is no input text and transcribed is empty or lacks alphanumeric/kana characters
+    const hasMeaningfulCharacters = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFFa-zA-Z0-9]/.test(transcribed);
+    if (!input && !hasMeaningfulCharacters) {
+      return NextResponse.json({
+        isIgnored: true,
+        noSpeechDetected: true,
+        japanese: '',
+        romaji: '',
+        english: '',
+        situationalIntent: '',
+        nuance: '',
+        culturalTip: '',
+        suggestedReplies: [],
+      });
+    }
+
     // ================= AMBIENT FILTER & LANGUAGE GUARD =================
-    const textToCheck = (parsed.transcribedInput || input || '').trim();
+    const textToCheck = transcribed;
     const hasJapaneseCharacters = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(textToCheck);
     const hasEnglishWords = /[a-zA-Z]{2,}/.test(textToCheck);
 

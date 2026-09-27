@@ -5,6 +5,7 @@ import { playChime, unlockMobileAudio } from '@/lib/audio';
 
 interface UseAudioRecorderProps {
   onAudioRecorded: (base64Audio: string, mimeType: string) => void;
+  onNoSpeechDetected?: () => void;
   autoStopOnSilence?: boolean;
   silenceThresholdMs?: number;
   highGainMultiplier?: number; // e.g. 2.5x gain boost for far-field audio
@@ -12,6 +13,7 @@ interface UseAudioRecorderProps {
 
 export const useAudioRecorder = ({
   onAudioRecorded,
+  onNoSpeechDetected,
   autoStopOnSilence = true,
   silenceThresholdMs = 1200,
   highGainMultiplier = 2.4, // +7.6 dB acoustic boost for far-field speech
@@ -29,18 +31,22 @@ export const useAudioRecorder = ({
   const animationFrameRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const onAudioRecordedRef = useRef(onAudioRecorded);
+  const onNoSpeechDetectedRef = useRef(onNoSpeechDetected);
 
   // VAD refs
   const hasSpokenRef = useRef(false);
+  const speechFramesRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
+  const recordingStartTimeRef = useRef<number>(0);
   const autoStopOnSilenceRef = useRef(autoStopOnSilence);
   const silenceThresholdRef = useRef(silenceThresholdMs);
 
   useEffect(() => {
     onAudioRecordedRef.current = onAudioRecorded;
+    onNoSpeechDetectedRef.current = onNoSpeechDetected;
     autoStopOnSilenceRef.current = autoStopOnSilence;
     silenceThresholdRef.current = silenceThresholdMs;
-  }, [onAudioRecorded, autoStopOnSilence, silenceThresholdMs]);
+  }, [onAudioRecorded, onNoSpeechDetected, autoStopOnSilence, silenceThresholdMs]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -78,8 +84,8 @@ export const useAudioRecorder = ({
 
     setIsRecording(false);
     setAudioLevel(0);
-    hasSpokenRef.current = false;
-    silenceStartRef.current = null;
+    // Note: Do NOT reset hasSpokenRef.current here!
+    // recorder.onstop will read hasSpokenRef to decide whether to process audio or call onNoSpeechDetected
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -87,7 +93,9 @@ export const useAudioRecorder = ({
     audioChunksRef.current = [];
     setRecordingDuration(0);
     hasSpokenRef.current = false;
+    speechFramesRef.current = 0;
     silenceStartRef.current = null;
+    recordingStartTimeRef.current = Date.now();
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -139,15 +147,28 @@ export const useAudioRecorder = ({
 
             // Voice Activity Detection (VAD)
             if (autoStopOnSilenceRef.current) {
-              if (normalized > 0.08) {
-                hasSpokenRef.current = true;
-                silenceStartRef.current = null;
-              } else if (hasSpokenRef.current) {
-                if (silenceStartRef.current === null) {
-                  silenceStartRef.current = Date.now();
-                } else if (Date.now() - silenceStartRef.current > silenceThresholdRef.current) {
-                  stopRecording();
-                  return;
+              if (normalized > 0.075) {
+                speechFramesRef.current += 1;
+                // At least 2 consecutive active frames to confirm genuine human speech
+                if (speechFramesRef.current >= 2) {
+                  hasSpokenRef.current = true;
+                  silenceStartRef.current = null;
+                }
+              } else {
+                speechFramesRef.current = 0;
+                if (hasSpokenRef.current) {
+                  if (silenceStartRef.current === null) {
+                    silenceStartRef.current = Date.now();
+                  } else if (Date.now() - silenceStartRef.current > silenceThresholdRef.current) {
+                    stopRecording();
+                    return;
+                  }
+                } else {
+                  // User has not spoken yet - if total silence exceeds 5 seconds, auto-stop
+                  if (Date.now() - recordingStartTimeRef.current > 5000) {
+                    stopRecording();
+                    return;
+                  }
                 }
               }
             }
@@ -190,6 +211,19 @@ export const useAudioRecorder = ({
 
       recorder.onstop = async () => {
         playChime('stop');
+        const userSpoke = hasSpokenRef.current;
+        hasSpokenRef.current = false;
+        speechFramesRef.current = 0;
+        silenceStartRef.current = null;
+
+        // If no speech was detected, do NOT send audio to translation API!
+        if (!userSpoke) {
+          if (onNoSpeechDetectedRef.current) {
+            onNoSpeechDetectedRef.current();
+          }
+          return;
+        }
+
         const effectiveMime = recorder.mimeType || mimeType || 'audio/mp4';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveMime });
         if (audioBlob.size > 0) {
@@ -201,6 +235,10 @@ export const useAudioRecorder = ({
               onAudioRecordedRef.current(base64Data, effectiveMime.split(';')[0]);
             }
           };
+        } else {
+          if (onNoSpeechDetectedRef.current) {
+            onNoSpeechDetectedRef.current();
+          }
         }
       };
 

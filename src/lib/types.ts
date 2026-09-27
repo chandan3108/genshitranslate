@@ -89,6 +89,7 @@ export interface TranslationRequest {
 
 export interface TranslationResponse {
   isIgnored?: boolean; // Set to true when ambient English conversation is detected and dropped
+  noSpeechDetected?: boolean; // Set to true when audio contains silence or no intelligible speech
   detectedSpeaker?: 'tourist' | 'local';
   transcribedInput?: string;
   japanese: string;

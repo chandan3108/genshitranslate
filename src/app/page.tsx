@@ -14,7 +14,7 @@ import { SITUATIONS } from '@/lib/situations';
 import { SituationId, Speaker, Turn, SuggestedReply, QuickAction, TranslationResponse, CounterCard } from '@/lib/types';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { playJapaneseSpeech, ensureVoicesLoaded, playChime, unlockMobileAudio } from '@/lib/audio';
-import { Ear, AlertCircle } from 'lucide-react';
+import { Ear, AlertCircle, MicOff } from 'lucide-react';
 
 export default function Home() {
   const [situationId, setSituationId] = useState<SituationId>('konbini');
@@ -29,6 +29,16 @@ export default function Home() {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [showCounterBoard, setShowCounterBoard] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [noSpeechNotice, setNoSpeechNotice] = useState(false);
+  const noSpeechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerNoSpeechNotice = useCallback(() => {
+    setNoSpeechNotice(true);
+    if (noSpeechTimeoutRef.current) clearTimeout(noSpeechTimeoutRef.current);
+    noSpeechTimeoutRef.current = setTimeout(() => {
+      setNoSpeechNotice(false);
+    }, 2200);
+  }, []);
 
   const turnsEndRef = useRef<HTMLDivElement>(null);
   const continuousModeRef = useRef(continuousMode);
@@ -127,6 +137,12 @@ export default function Home() {
 
         const data: TranslationResponse = await res.json();
 
+        // If no speech was detected, show small prompt and abort turn creation
+        if (data.noSpeechDetected) {
+          triggerNoSpeechNotice();
+          return;
+        }
+
         // If ambient filter dropped English conversation, silently ignore!
         if (data.isIgnored) {
           return;
@@ -208,6 +224,19 @@ export default function Home() {
 
         const data: TranslationResponse = await res.json();
 
+        // If silence or no intelligible speech was found, show prompt and avoid hallucinated turns!
+        if (data.noSpeechDetected) {
+          triggerNoSpeechNotice();
+          if (ambientCopilotRef.current || continuousModeRef.current) {
+            setTimeout(() => {
+              if (ambientCopilotRef.current || continuousModeRef.current) {
+                recorderStartRef.current();
+              }
+            }, 1000);
+          }
+          return;
+        }
+
         // If ambient filter dropped English conversation with family, ignore and re-arm!
         if (data.isIgnored) {
           if (ambientCopilotRef.current) {
@@ -259,7 +288,7 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [turns, speaker, situationId]
+    [turns, speaker, situationId, triggerNoSpeechNotice]
   );
 
   // Audio recorder hook with high-gain pre-amp boost and silence detection
@@ -273,6 +302,16 @@ export default function Home() {
     toggleRecording,
   } = useAudioRecorder({
     onAudioRecorded: handleAudioRecorded,
+    onNoSpeechDetected: () => {
+      triggerNoSpeechNotice();
+      if (ambientCopilotRef.current || continuousModeRef.current) {
+        setTimeout(() => {
+          if (ambientCopilotRef.current || continuousModeRef.current) {
+            recorderStartRef.current();
+          }
+        }, 1000);
+      }
+    },
     autoStopOnSilence: true,
     silenceThresholdMs: 1200,
     highGainMultiplier: 2.4, // +7.6 dB acoustic boost for far-field voices
@@ -481,6 +520,14 @@ export default function Home() {
         isLoading={isLoading}
         recorderError={recorderError}
       />
+
+      {/* Small Floating Prompt: No input detected */}
+      {noSpeechNotice && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 text-slate-200 text-xs px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-fadeIn pointer-events-none transition-all">
+          <MicOff className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-medium tracking-wide">No input detected</span>
+        </div>
+      )}
 
       {/* Full-Screen "Show to Staff" Flip Card */}
       {showStaffCardTurn && (
