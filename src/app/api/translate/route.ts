@@ -102,36 +102,40 @@ DESIRED SPEAKER MODE: ${speaker}
 
 ${input ? `CURRENT TEXT INPUT: "${input.trim()}"` : 'AUDIO INPUT ATTACHED: Analyze the audio, determine the language, and process accordingly.'}
 
-STRICT SILENCE & NO-SPEECH RULE:
-- If the audio contains NO intelligible human speech (e.g. pure silence, breathing, microphone rustle, white noise, room hum, static, or background noise without clear words):
-  YOU MUST RETURN ONLY:
-  {
-    "isIgnored": true,
-    "noSpeechDetected": true,
-    "detectedSpeaker": "tourist",
-    "transcribedInput": "",
-    "japanese": "",
-    "romaji": "",
-    "english": "",
-    "situationalIntent": "",
-    "nuance": "",
-    "culturalTip": "",
-    "suggestedReplies": []
-  }
-- CRITICAL WARNING: NEVER fabricate, hallucinate, or auto-generate situational phrases (such as greetings, asking for bags, or ordering items) when no clear human speech is present in the audio!
+AUDIO HUMAN SPEECH VALIDATION RULE:
+1. First, strictly analyze the audio for genuine human speech.
+2. If the audio contains NO human speech (e.g. pure silence, breathing, microphone click/rustle, room tone, air conditioner, or background static):
+   You MUST return:
+   {
+     "isIgnored": true,
+     "noSpeechDetected": true,
+     "detectedSpeaker": "tourist",
+     "transcribedInput": "",
+     "japanese": "",
+     "romaji": "",
+     "english": "",
+     "situationalIntent": "",
+     "nuance": "",
+     "culturalTip": "",
+     "suggestedReplies": []
+   }
+   CRITICAL: Do NOT copy, invent, or hallucinate phrases from the situation guide or conversation history if the audio is silent or unintelligible noise!
+
+3. ONLY if clear human speech is genuinely spoken in the audio:
+   Set "isIgnored": false and "noSpeechDetected": false, transcribe the exact spoken words, translate them accurately, and provide context.
 
 Respond ONLY with a valid JSON object matching this schema:
 {
   "isIgnored": false,
   "noSpeechDetected": false,
   "detectedSpeaker": "tourist | local",
-  "transcribedInput": "The exact words spoken in the audio (or echo the text input)",
-  "japanese": "Japanese text",
-  "romaji": "Hepburn Romaji with clear word/syllable spacing",
-  "english": "English text",
-  "situationalIntent": "Detailed explanation of what is actually happening in this situation",
-  "nuance": "Linguistic & cultural nuance. Explain why this phrase or grammatical form was chosen over literal alternatives",
-  "culturalTip": "A practical travel tip on Japanese etiquette, physical gestures, or expectations",
+  "transcribedInput": "The exact words spoken in the audio (empty string if no speech)",
+  "japanese": "Japanese text (empty string if no speech)",
+  "romaji": "Hepburn Romaji with clear word/syllable spacing (empty string if no speech)",
+  "english": "English text (empty string if no speech)",
+  "situationalIntent": "Detailed explanation of what is actually happening in this situation (empty string if no speech)",
+  "nuance": "Linguistic & cultural nuance (empty string if no speech)",
+  "culturalTip": "Practical travel tip on Japanese etiquette (empty string if no speech)",
   "suggestedReplies": [
     {
       "label": "Short button label in English",

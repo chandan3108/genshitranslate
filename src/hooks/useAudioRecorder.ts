@@ -39,6 +39,8 @@ export const useAudioRecorder = ({
   // VAD refs
   const hasSpokenRef = useRef(false);
   const speechFramesRef = useRef(0);
+  const totalSpeechFramesRef = useRef(0);
+  const peakAudioLevelRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
   const autoStopOnSilenceRef = useRef(autoStopOnSilence);
@@ -98,6 +100,8 @@ export const useAudioRecorder = ({
     setRecordingDuration(0);
     hasSpokenRef.current = false;
     speechFramesRef.current = 0;
+    totalSpeechFramesRef.current = 0;
+    peakAudioLevelRef.current = 0;
     silenceStartRef.current = null;
     recordingStartTimeRef.current = Date.now();
 
@@ -149,12 +153,22 @@ export const useAudioRecorder = ({
             const normalized = Math.min(1, (avg / 128) * 1.8);
             setAudioLevel(normalized);
 
+            const elapsed = Date.now() - recordingStartTimeRef.current;
+            const isPastStartupGrace = elapsed > 350; // ignore first 350ms of stream init & touch pop
+
+            if (isPastStartupGrace && normalized > peakAudioLevelRef.current) {
+              peakAudioLevelRef.current = normalized;
+            }
+
             // Voice Activity Detection (VAD)
             if (autoStopOnSilenceRef.current) {
-              if (normalized > 0.075) {
+              // Real voice speech threshold: normalized > 0.16 (ambient room noise is typically 0.03 - 0.10)
+              if (isPastStartupGrace && normalized > 0.16) {
                 speechFramesRef.current += 1;
-                // At least 2 consecutive active frames to confirm genuine human speech
-                if (speechFramesRef.current >= 2) {
+                totalSpeechFramesRef.current += 1;
+
+                // At least 6 consecutive frames (~100ms) of sustained acoustic energy to confirm human voice
+                if (speechFramesRef.current >= 6) {
                   hasSpokenRef.current = true;
                   silenceStartRef.current = null;
                 }
@@ -169,7 +183,7 @@ export const useAudioRecorder = ({
                   }
                 } else {
                   // User has not spoken yet - if total silence exceeds 5 seconds, auto-stop
-                  if (Date.now() - recordingStartTimeRef.current > 5000) {
+                  if (elapsed > 5000) {
                     stopRecording();
                     return;
                   }
@@ -215,13 +229,24 @@ export const useAudioRecorder = ({
 
       recorder.onstop = async () => {
         if (!silentModeRef.current) playChime('stop');
-        const userSpoke = hasSpokenRef.current;
+
+        // Real human speech verification:
+        // 1) hasSpokenRef must be true (sustained consecutive voice frames)
+        // 2) totalSpeechFrames must be at least 8 (at least ~130ms of active speech)
+        // 3) peakAudioLevel must have reached at least 0.20 (genuine spoken voice volume)
+        const genuineSpeech = 
+          hasSpokenRef.current && 
+          totalSpeechFramesRef.current >= 8 && 
+          peakAudioLevelRef.current >= 0.20;
+
         hasSpokenRef.current = false;
         speechFramesRef.current = 0;
+        totalSpeechFramesRef.current = 0;
+        peakAudioLevelRef.current = 0;
         silenceStartRef.current = null;
 
-        // If no speech was detected, do NOT send audio to translation API!
-        if (!userSpoke) {
+        // If genuine human speech was not detected, do NOT send audio to translation API!
+        if (!genuineSpeech) {
           if (onNoSpeechDetectedRef.current) {
             onNoSpeechDetectedRef.current();
           }
@@ -230,20 +255,22 @@ export const useAudioRecorder = ({
 
         const effectiveMime = recorder.mimeType || mimeType || 'audio/mp4';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveMime });
-        if (audioBlob.size > 0) {
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = () => {
-            const base64Data = (reader.result as string).split(',')[1];
-            if (base64Data && onAudioRecordedRef.current) {
-              onAudioRecordedRef.current(base64Data, effectiveMime.split(';')[0]);
-            }
-          };
-        } else {
+
+        if (audioBlob.size < 3000) {
           if (onNoSpeechDetectedRef.current) {
             onNoSpeechDetectedRef.current();
           }
+          return;
         }
+
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Data = (reader.result as string).split(',')[1];
+          if (base64Data && onAudioRecordedRef.current) {
+            onAudioRecordedRef.current(base64Data, effectiveMime.split(';')[0]);
+          }
+        };
       };
 
       recorder.start(500);
