@@ -4,14 +4,13 @@ import { TranslationRequest, TranslationResponse } from '@/lib/types';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// High-availability model pool prioritized for free-tier resilience
+// High-availability model pool prioritized by response latency and verified endpoints
 const FALLBACK_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-3.1-flash-lite',
   'gemini-3.5-flash',
-  'gemini-3.8-flash',
-  'gemma-4-26b-a4b-it'
+  'gemini-flash-latest'
 ];
 
 export async function POST(req: NextRequest) {
