@@ -76,9 +76,9 @@ RULE:
 - The LOCAL is a Japanese resident or staff member who ONLY speaks Japanese.
 - If the speaker spoke or typed ENGLISH:
   * detectedSpeaker MUST BE "tourist".
-  * "english": The input English text.
   * "japanese": Natural, polite travel Japanese translation for the tourist to say.
   * "romaji": Syllable-spaced Hepburn Romaji.
+  * "english": Faithful, accurate English meaning of the generated Japanese phrase (e.g. if the Japanese politely adds "kurai" (about/approximately) or softening particles, explicitly reflect "About how much..." so the traveler understands the exact nuance of what they are saying!).
   * "nuance": Explanation of why this Japanese phrasing was chosen over alternatives.
   * "situationalIntent": "" (leave empty string for tourist)
   * "suggestedReplies": [] (MUST BE EMPTY ARRAY for tourist! 1-tap polite replies are ONLY generated for the Japanese local staff so the tourist can respond to them!)
