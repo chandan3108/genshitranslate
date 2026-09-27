@@ -9,6 +9,7 @@ interface UseAudioRecorderProps {
   autoStopOnSilence?: boolean;
   silenceThresholdMs?: number;
   highGainMultiplier?: number; // e.g. 2.5x gain boost for far-field audio
+  silentMode?: boolean; // When true (ambient copilot), do not play start/stop chimes
 }
 
 export const useAudioRecorder = ({
@@ -17,6 +18,7 @@ export const useAudioRecorder = ({
   autoStopOnSilence = true,
   silenceThresholdMs = 1200,
   highGainMultiplier = 2.4, // +7.6 dB acoustic boost for far-field speech
+  silentMode = false,
 }: UseAudioRecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0); // 0 to 1 for visualizer
@@ -32,6 +34,7 @@ export const useAudioRecorder = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const onAudioRecordedRef = useRef(onAudioRecorded);
   const onNoSpeechDetectedRef = useRef(onNoSpeechDetected);
+  const silentModeRef = useRef(silentMode);
 
   // VAD refs
   const hasSpokenRef = useRef(false);
@@ -46,7 +49,8 @@ export const useAudioRecorder = ({
     onNoSpeechDetectedRef.current = onNoSpeechDetected;
     autoStopOnSilenceRef.current = autoStopOnSilence;
     silenceThresholdRef.current = silenceThresholdMs;
-  }, [onAudioRecorded, onNoSpeechDetected, autoStopOnSilence, silenceThresholdMs]);
+    silentModeRef.current = silentMode;
+  }, [onAudioRecorded, onNoSpeechDetected, autoStopOnSilence, silenceThresholdMs, silentMode]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -210,7 +214,7 @@ export const useAudioRecorder = ({
       };
 
       recorder.onstop = async () => {
-        playChime('stop');
+        if (!silentModeRef.current) playChime('stop');
         const userSpoke = hasSpokenRef.current;
         hasSpokenRef.current = false;
         speechFramesRef.current = 0;
@@ -244,7 +248,7 @@ export const useAudioRecorder = ({
 
       recorder.start(500);
       setIsRecording(true);
-      playChime('start');
+      if (!silentModeRef.current) playChime('start');
 
       const startTime = Date.now();
       timerRef.current = setInterval(() => {

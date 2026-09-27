@@ -224,15 +224,17 @@ export default function Home() {
 
         const data: TranslationResponse = await res.json();
 
-        // If silence or no intelligible speech was found, show prompt and avoid hallucinated turns!
+        // If silence or no intelligible speech was found, show prompt only on manual mic, not in passive ambient mode
         if (data.noSpeechDetected) {
-          triggerNoSpeechNotice();
+          if (!ambientCopilotRef.current && !continuousModeRef.current) {
+            triggerNoSpeechNotice();
+          }
           if (ambientCopilotRef.current || continuousModeRef.current) {
             setTimeout(() => {
               if (ambientCopilotRef.current || continuousModeRef.current) {
                 recorderStartRef.current();
               }
-            }, 1000);
+            }, 500);
           }
           return;
         }
@@ -244,7 +246,7 @@ export default function Home() {
               if (ambientCopilotRef.current) {
                 recorderStartRef.current();
               }
-            }, 400);
+            }, 300);
           }
           return;
         }
@@ -303,18 +305,22 @@ export default function Home() {
   } = useAudioRecorder({
     onAudioRecorded: handleAudioRecorded,
     onNoSpeechDetected: () => {
-      triggerNoSpeechNotice();
+      // Only display the "No input detected" prompt if user manually tapped mic
+      if (!ambientCopilotRef.current && !continuousModeRef.current) {
+        triggerNoSpeechNotice();
+      }
       if (ambientCopilotRef.current || continuousModeRef.current) {
         setTimeout(() => {
           if (ambientCopilotRef.current || continuousModeRef.current) {
             recorderStartRef.current();
           }
-        }, 1000);
+        }, 500);
       }
     },
     autoStopOnSilence: true,
     silenceThresholdMs: 1200,
     highGainMultiplier: 2.4, // +7.6 dB acoustic boost for far-field voices
+    silentMode: ambientCopilot, // Stealth listening: no start/stop beeps in Ambient mode
   });
 
   recorderStartRef.current = startRecording;
