@@ -4,12 +4,11 @@ import { TranslationRequest, TranslationResponse } from '@/lib/types';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// High-availability model pool prioritized by active endpoints and low latency
-const FALLBACK_MODELS = [
-  'gemini-flash-latest',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
+// Ultra-low latency model pool prioritized by fast response speed
+const FAST_MODELS = [
   'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
 ];
 
 export async function POST(req: NextRequest) {
@@ -94,6 +93,14 @@ DEEP CONVERSATIONAL CONTINUITY & CONTEXT AWARENESS:
 2. If the local staff previously asked a question (e.g. "Do you need a bag?", "Do you have a point card?", "Is this for here or to go?"), interpret short tourist answers like "No thanks", "Yes please", or "To go" directly in response to that question (e.g. "大丈夫です、袋はいらないです" or "持ち帰りでお願いします").
 3. If the tourist asks a question that builds on previous context (e.g. "How much for both?" or "Do you have another one?"), maintain reference continuity.
 4. When translating Japanese staff remarks, explain the real underlying situational intent rather than giving literal dictionary translations.
+
+SPEED & CONCISENESS DIRECTIVE (CRITICAL FOR REAL-TIME TRAVEL SPEED):
+1. Be ultra-concise, fast, and natural.
+2. "nuance": Exactly 1 short, crisp sentence explaining why this Japanese phrasing fits the situation and tone.
+3. "culturalTip": Exactly 1 short, practical tip (under 15 words) on Japanese etiquette or custom.
+4. "situationalIntent": Exactly 1 short sentence explaining what the clerk actually means.
+5. "suggestedReplies": 2 to 3 concise 1-tap options matching the active situation.
+6. Strictly avoid long essays or filler words so the response generates in milliseconds!
 
 ${
   ambientFilter
@@ -209,42 +216,57 @@ Respond ONLY with a valid JSON object matching this schema:
     let lastError: any = null;
     let rawText: string | null = null;
 
-    // Cycle through high-availability model pool
-    for (const model of FALLBACK_MODELS) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: parts,
-              },
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 3000,
-              responseMimeType: 'application/json',
-            },
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (rawText) break;
-        } else {
-          const errText = await response.text();
-          console.warn(`Model ${model} returned ${response.status}: ${errText.slice(0, 100)}`);
-          lastError = errText;
-        }
-      } catch (fetchErr) {
-        console.warn(`Fetch error for ${model}:`, fetchErr);
-        lastError = fetchErr;
+    // Cycle through low-latency model pool
+    for (const model of FAST_MODELS) {
+      const is25 = model.includes('2.5');
+      const generationConfig: Record<string, any> = {
+        temperature: 0.1,
+        maxOutputTokens: 750,
+        responseMimeType: 'application/json',
+      };
+      // Disable internal chain-of-thought to eliminate 2-4s of thinking latency on Gemini 2.5
+      if (is25) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
       }
+
+      // Try up to 2 attempts for transient 503 spikes
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(7500),
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawText) break;
+          } else {
+            const errText = await response.text();
+            console.warn(`Model ${model} (attempt ${attempt + 1}) returned ${response.status}: ${errText.slice(0, 100)}`);
+            lastError = errText;
+            if (response.status === 503 && attempt === 0) {
+              await new Promise((r) => setTimeout(r, 250));
+              continue;
+            }
+            break;
+          }
+        } catch (fetchErr) {
+          console.warn(`Fetch error for ${model} (attempt ${attempt + 1}):`, fetchErr);
+          lastError = fetchErr;
+          break;
+        }
+      }
+
+      if (rawText) break;
     }
 
     if (!rawText) {

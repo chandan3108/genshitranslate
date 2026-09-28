@@ -200,6 +200,7 @@ export default function Home() {
         };
 
         setTurns((prev) => [...prev, newTurn]);
+        setIsLoading(false); // Render translation card immediately with zero perceptual delay!
 
         if (resolvedSpeaker === 'tourist') {
           await playJapaneseSpeech(data.japanese, data.kanaReading);
@@ -211,12 +212,11 @@ export default function Home() {
             if (continuousModeRef.current || ambientCopilotRef.current) {
               recorderStartRef.current();
             }
-          }, 600);
+          }, 150);
         }
       } catch (err: any) {
         console.error('Failed to translate:', err);
         setErrorMessage(err.message || 'Failed to connect to translation service');
-      } finally {
         setIsLoading(false);
       }
     },
@@ -271,7 +271,7 @@ export default function Home() {
               if (ambientCopilotRef.current || continuousModeRef.current) {
                 recorderStartRef.current();
               }
-            }, 500);
+            }, 150);
           }
           return;
         }
@@ -283,7 +283,7 @@ export default function Home() {
               if (ambientCopilotRef.current) {
                 recorderStartRef.current();
               }
-            }, 300);
+            }, 150);
           }
           return;
         }
@@ -308,6 +308,7 @@ export default function Home() {
         };
 
         setTurns((prev) => [...prev, newTurn]);
+        setIsLoading(false); // Instant visual render: display the translation card immediately!
 
         if (resolvedSpeaker === 'tourist') {
           await playJapaneseSpeech(data.japanese, data.kanaReading);
@@ -319,19 +320,18 @@ export default function Home() {
             if (continuousModeRef.current || ambientCopilotRef.current) {
               recorderStartRef.current();
             }
-          }, 600);
+          }, 150);
         }
       } catch (err: any) {
         console.error('Failed to translate audio:', err);
         setErrorMessage(err.message || 'Failed to process audio translation');
-      } finally {
         setIsLoading(false);
       }
     },
     [turns, speaker, situationId, triggerNoSpeechNotice]
   );
 
-  // Audio recorder hook with high-gain pre-amp boost and silence detection
+  // Audio recorder hook with high-gain pre-amp boost and adaptive low-latency silence detection
   const {
     isRecording,
     audioLevel,
@@ -352,11 +352,11 @@ export default function Home() {
           if (ambientCopilotRef.current || continuousModeRef.current) {
             recorderStartRef.current();
           }
-        }, 500);
+        }, 150);
       }
     },
     autoStopOnSilence: true,
-    silenceThresholdMs: 1200,
+    silenceThresholdMs: continuousMode ? 550 : 750,
     highGainMultiplier: 2.4, // +7.6 dB acoustic boost for far-field voices
     silentMode: ambientCopilot, // Stealth listening: no start/stop beeps in Ambient mode
   });

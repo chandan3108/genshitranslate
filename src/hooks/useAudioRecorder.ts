@@ -17,7 +17,7 @@ export const useAudioRecorder = ({
   onAudioRecorded,
   onNoSpeechDetected,
   autoStopOnSilence = true,
-  silenceThresholdMs = 1200,
+  silenceThresholdMs = 750,
   highGainMultiplier = 2.4, // +7.6 dB acoustic boost for far-field speech
   silentMode = false,
 }: UseAudioRecorderProps) => {
@@ -182,9 +182,17 @@ export const useAudioRecorder = ({
                 if (hasSpokenRef.current) {
                   if (silenceStartRef.current === null) {
                     silenceStartRef.current = Date.now();
-                  } else if (Date.now() - silenceStartRef.current > silenceThresholdRef.current) {
-                    stopRecording();
-                    return;
+                  } else {
+                    // Adaptive silence cutoff: if user spoke a substantial phrase (>=16 speech frames, ~260ms),
+                    // allow a crisp cutoff at 550ms. If they just started or said a single syllable, use the full threshold.
+                    const dynamicThreshold = totalSpeechFramesRef.current >= 16 
+                      ? Math.min(silenceThresholdRef.current, 550) 
+                      : silenceThresholdRef.current;
+
+                    if (Date.now() - silenceStartRef.current > dynamicThreshold) {
+                      stopRecording();
+                      return;
+                    }
                   }
                 } else {
                   // User has not spoken yet - if total silence exceeds 5 seconds, auto-stop
