@@ -164,6 +164,7 @@ STRICT HUMAN SPEECH MANDATE (ZERO TOLERANCE FOR HALLUCINATION):
      "suggestedReplies": []
    }
 3. ABSOLUTE BAN ON HALLUCINATION: NEVER fabricate, guess, or output any Japanese or English phrase (such as "お弁当温めますか？", "袋はご利用ですか？", "いらっしゃいませ", etc.) unless those exact words were audibly and distinctly spoken in the audio recording!
+4. FAR-FIELD & SOFT SPEECH RESILIENCE: In real travel settings (convenience store counters, train ticket gates, hotel desks, restaurants), clerks and staff often speak softly, rapidly, or from across a counter with background ambient noise. Listen carefully: if human speech IS present—even if quiet, low-volume, or brief—faithfully transcribe and translate every word.
 ` : ''}
 
 CURRENT SITUATION:

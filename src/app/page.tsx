@@ -356,7 +356,7 @@ export default function Home() {
       }
     },
     autoStopOnSilence: true,
-    silenceThresholdMs: continuousMode ? 550 : 750,
+    silenceThresholdMs: continuousMode ? 1400 : (ambientCopilot ? 1600 : 2000),
     highGainMultiplier: 2.4, // +7.6 dB acoustic boost for far-field voices
     silentMode: ambientCopilot, // Stealth listening: no start/stop beeps in Ambient mode
   });

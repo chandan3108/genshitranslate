@@ -17,7 +17,7 @@ export const useAudioRecorder = ({
   onAudioRecorded,
   onNoSpeechDetected,
   autoStopOnSilence = true,
-  silenceThresholdMs = 750,
+  silenceThresholdMs = 1500,
   highGainMultiplier = 2.4, // +7.6 dB acoustic boost for far-field speech
   silentMode = false,
 }: UseAudioRecorderProps) => {
@@ -118,11 +118,12 @@ export const useAudioRecorder = ({
       // Unlock mobile audio session
       unlockMobileAudio();
 
-      // 1. Capture microphone stream directly from device
+      // 1. Capture microphone stream directly from device with hardware AGC & noise suppression
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true, // Hardware dynamic gain for distant/soft speech
         },
       });
       rawStreamRef.current = stream;
@@ -167,13 +168,13 @@ export const useAudioRecorder = ({
 
             // Voice Activity Detection (VAD)
             if (autoStopOnSilenceRef.current) {
-              // Real voice speech threshold: normalized > 0.16 (ambient room noise is typically 0.03 - 0.10)
-              if (isPastStartupGrace && normalized > 0.16) {
+              // Real voice speech threshold: normalized > 0.07 (captures soft/distant voices; room floor is 0.02-0.04)
+              if (isPastStartupGrace && normalized > 0.07) {
                 speechFramesRef.current += 1;
                 totalSpeechFramesRef.current += 1;
 
-                // At least 10 consecutive frames (~160ms) of sustained acoustic energy to confirm human voice
-                if (speechFramesRef.current >= 10) {
+                // At least 6 consecutive frames (~90ms) of sustained energy to confirm voice
+                if (speechFramesRef.current >= 6) {
                   hasSpokenRef.current = true;
                   silenceStartRef.current = null;
                 }
@@ -183,20 +184,17 @@ export const useAudioRecorder = ({
                   if (silenceStartRef.current === null) {
                     silenceStartRef.current = Date.now();
                   } else {
-                    // Adaptive silence cutoff: if user spoke a substantial phrase (>=16 speech frames, ~260ms),
-                    // allow a crisp cutoff at 550ms. If they just started or said a single syllable, use the full threshold.
-                    const dynamicThreshold = totalSpeechFramesRef.current >= 16 
-                      ? Math.min(silenceThresholdRef.current, 550) 
-                      : silenceThresholdRef.current;
+                    // Respect full silence threshold (e.g. 1400ms-1800ms) to allow natural pauses & breathing
+                    const silenceLimit = silenceThresholdRef.current;
 
-                    if (Date.now() - silenceStartRef.current > dynamicThreshold) {
+                    if (Date.now() - silenceStartRef.current > silenceLimit) {
                       stopRecording();
                       return;
                     }
                   }
                 } else {
-                  // User has not spoken yet - if total silence exceeds 5 seconds, auto-stop
-                  if (elapsed > 5000) {
+                  // User has not spoken yet - if total silence exceeds 7 seconds, auto-stop
+                  if (elapsed > 7000) {
                     stopRecording();
                     return;
                   }
@@ -243,16 +241,14 @@ export const useAudioRecorder = ({
       recorder.onstop = async () => {
         if (!silentModeRef.current) playChime('stop');
 
-        // Real human speech verification:
-        // 1) hasSpokenRef must be true (sustained consecutive voice frames)
-        // 2) totalSpeechFrames must be at least 15 (at least ~250ms of active speech)
-        // 3) peakAudioLevel must have reached at least 0.22 (genuine spoken voice volume)
-        // 4) Total recording duration must be at least 350ms (avoids instant tap-and-release pop)
+        // Speech presence verification:
+        // 1) hasSpokenRef is true OR peak audio exceeded 0.07 (faint/soft voice)
+        // 2) totalSpeechFrames at least 6 (~90ms) OR manual stop with audible audio
+        // 3) Total recording duration at least 350ms (avoids instant tap-and-release pop)
         const elapsedTotal = Date.now() - recordingStartTimeRef.current;
         const genuineSpeech = 
-          hasSpokenRef.current && 
-          totalSpeechFramesRef.current >= 15 && 
-          peakAudioLevelRef.current >= 0.22 &&
+          (hasSpokenRef.current || peakAudioLevelRef.current >= 0.07) && 
+          totalSpeechFramesRef.current >= 6 && 
           elapsedTotal >= 350;
 
         hasSpokenRef.current = false;
@@ -272,7 +268,7 @@ export const useAudioRecorder = ({
         const effectiveMime = recorder.mimeType || mimeType || 'audio/mp4';
         const audioBlob = new Blob(audioChunksRef.current, { type: effectiveMime });
 
-        if (audioBlob.size < 3000) {
+        if (audioBlob.size < 1000) {
           if (onNoSpeechDetectedRef.current) {
             onNoSpeechDetectedRef.current();
           }
