@@ -17,10 +17,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
@@ -28,8 +28,26 @@ jobs:
 
       - name: Prepare Web Assets & Sync Capacitor
         run: |
-          mkdir -p out
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=https://genshitranslate.vercel.app"></head><body>Loading Genshi...</body></html>' > out/index.html
+          node -e '
+          const fs = require("fs");
+          fs.mkdirSync("out", { recursive: true });
+          fs.writeFileSync("out/index.html", `<!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+            <title>Genshi</title>
+            <meta http-equiv="refresh" content="0;url=https://genshitranslate.vercel.app">
+          </head>
+          <body style="background:#0b0f17;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
+            <div style="text-align:center">
+              <div style="font-size:24px;font-weight:700;letter-spacing:2px;margin-bottom:8px">GENSHI</div>
+              <div style="font-size:13px;color:#94a3b8">Launching Japanese Travel Copilot...</div>
+            </div>
+            <script>window.location.replace("https://genshitranslate.vercel.app");</script>
+          </body>
+          </html>`);
+          '
           npx cap sync android
 
       - name: Set up Java 21
@@ -41,6 +59,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK Licenses & Install Platform
+        run: |
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+          mkdir -p "$ANDROID_HOME/licenses"
+          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" >> "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" >> "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          yes | sdkmanager --licenses 2>/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" 2>/dev/null || true
+
       - name: Build Android Debug APK
         run: |
           cd android
@@ -50,8 +77,15 @@ jobs:
       - name: Prepare APK Package
         run: |
           mkdir -p release-apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/genshi-travel-copilot.apk
-          ls -lh release-apk/genshi-travel-copilot.apk
+          APK_FILE=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            cp "$APK_FILE" release-apk/genshi-travel-copilot.apk
+            ls -lh release-apk/genshi-travel-copilot.apk
+          else
+            echo "Error: APK file not found!"
+            find android/app/build/outputs -type f || true
+            exit 1
+          fi
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
