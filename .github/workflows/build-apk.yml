@@ -26,9 +26,10 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Web Assets & Sync Capacitor
+      - name: Prepare Web Assets & Sync Capacitor
         run: |
-          npm run build
+          mkdir -p out
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=https://genshitranslate.vercel.app"></head><body>Loading Genshi...</body></html>' > out/index.html
           npx cap sync android
 
       - name: Set up Java 21
