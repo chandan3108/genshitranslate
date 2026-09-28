@@ -172,8 +172,8 @@ export const useAudioRecorder = ({
                 speechFramesRef.current += 1;
                 totalSpeechFramesRef.current += 1;
 
-                // At least 6 consecutive frames (~100ms) of sustained acoustic energy to confirm human voice
-                if (speechFramesRef.current >= 6) {
+                // At least 10 consecutive frames (~160ms) of sustained acoustic energy to confirm human voice
+                if (speechFramesRef.current >= 10) {
                   hasSpokenRef.current = true;
                   silenceStartRef.current = null;
                 }
@@ -245,12 +245,15 @@ export const useAudioRecorder = ({
 
         // Real human speech verification:
         // 1) hasSpokenRef must be true (sustained consecutive voice frames)
-        // 2) totalSpeechFrames must be at least 8 (at least ~130ms of active speech)
-        // 3) peakAudioLevel must have reached at least 0.20 (genuine spoken voice volume)
+        // 2) totalSpeechFrames must be at least 15 (at least ~250ms of active speech)
+        // 3) peakAudioLevel must have reached at least 0.22 (genuine spoken voice volume)
+        // 4) Total recording duration must be at least 350ms (avoids instant tap-and-release pop)
+        const elapsedTotal = Date.now() - recordingStartTimeRef.current;
         const genuineSpeech = 
           hasSpokenRef.current && 
-          totalSpeechFramesRef.current >= 8 && 
-          peakAudioLevelRef.current >= 0.20;
+          totalSpeechFramesRef.current >= 15 && 
+          peakAudioLevelRef.current >= 0.22 &&
+          elapsedTotal >= 350;
 
         hasSpokenRef.current = false;
         speechFramesRef.current = 0;

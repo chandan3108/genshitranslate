@@ -144,25 +144,15 @@ RULE:
   * "suggestedReplies": 2 to 4 quick Japanese response options for the tourist to reply with. Tailor these responses to match the active TONE (${tone.toUpperCase()}) and CUSTOM USER CONTEXT!`
 }
 
-CURRENT SITUATION:
-${situationConfig.name} (${situationConfig.japaneseName})
-${situationConfig.systemPromptContext}
-
-CONVERSATION HISTORY:
-${formattedHistory ? formattedHistory : 'No prior turns.'}
-
-DESIRED SPEAKER MODE: ${speaker}
-
-${input ? `CURRENT TEXT INPUT: "${input.trim()}"` : 'AUDIO INPUT ATTACHED: Analyze the audio, determine the language, and process accordingly.'}
-
-AUDIO HUMAN SPEECH VALIDATION RULE:
-1. First, strictly analyze the audio for genuine human speech.
-2. If the audio contains NO human speech (e.g. pure silence, breathing, microphone click/rustle, room tone, air conditioner, or background static):
-   You MUST return:
+${audioBase64 ? `
+STRICT HUMAN SPEECH MANDATE (ZERO TOLERANCE FOR HALLUCINATION):
+1. Listen ONLY to the audio recording.
+2. If the audio is silent, quiet room tone, microphone rustling/clicks, breathing, or contains NO audible spoken human words:
+   You MUST return EXACTLY:
    {
      "isIgnored": true,
      "noSpeechDetected": true,
-     "detectedSpeaker": "tourist",
+     "detectedSpeaker": "${speaker === 'local' ? 'local' : 'tourist'}",
      "transcribedInput": "",
      "japanese": "",
      "kanaReading": "",
@@ -173,10 +163,19 @@ AUDIO HUMAN SPEECH VALIDATION RULE:
      "culturalTip": "",
      "suggestedReplies": []
    }
-   CRITICAL: Do NOT copy, invent, or hallucinate phrases from the situation guide or conversation history if the audio is silent or unintelligible noise!
+3. ABSOLUTE BAN ON HALLUCINATION: NEVER fabricate, guess, or output any Japanese or English phrase (such as "お弁当温めますか？", "袋はご利用ですか？", "いらっしゃいませ", etc.) unless those exact words were audibly and distinctly spoken in the audio recording!
+` : ''}
 
-3. ONLY if clear human speech is genuinely spoken in the audio:
-   Set "isIgnored": false and "noSpeechDetected": false, transcribe the exact spoken words, translate them accurately, and provide context.
+CURRENT SITUATION:
+${situationConfig.name} (${situationConfig.japaneseName})
+${audioBase64 ? situationConfig.description : situationConfig.systemPromptContext}
+
+CONVERSATION HISTORY:
+${formattedHistory ? formattedHistory : 'No prior turns.'}
+
+DESIRED SPEAKER MODE: ${speaker}
+
+${input ? `CURRENT TEXT INPUT: "${input.trim()}"` : 'AUDIO INPUT ATTACHED: Transcribe ONLY if words are audibly spoken in the recording.'}
 
 Respond ONLY with a valid JSON object matching this schema:
 {
@@ -220,7 +219,7 @@ Respond ONLY with a valid JSON object matching this schema:
     for (const model of FAST_MODELS) {
       const is25 = model.includes('2.5');
       const generationConfig: Record<string, any> = {
-        temperature: 0.1,
+        temperature: audioBase64 ? 0.0 : 0.1,
         maxOutputTokens: 750,
         responseMimeType: 'application/json',
       };
@@ -293,6 +292,21 @@ Respond ONLY with a valid JSON object matching this schema:
 
     // ================= SILENCE & NO-SPEECH GUARD =================
     if (parsed.noSpeechDetected || parsed.isIgnored) {
+      return NextResponse.json({
+        isIgnored: true,
+        noSpeechDetected: true,
+        japanese: '',
+        romaji: '',
+        english: '',
+        situationalIntent: '',
+        nuance: '',
+        culturalTip: '',
+        suggestedReplies: [],
+      });
+    }
+
+    // If audio was submitted, but transcribedInput is empty or lacks actual speech
+    if (audioBase64 && (!parsed.transcribedInput || !parsed.transcribedInput.trim())) {
       return NextResponse.json({
         isIgnored: true,
         noSpeechDetected: true,
